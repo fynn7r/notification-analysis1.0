@@ -1,0 +1,27 @@
+{
+  "id": "notification_summary_generator_1",
+  "pluginKey": "@official-plugins/ai-text-summary",
+  "pluginVersion": "1.0.11",
+  "name": "通知摘要生成",
+  "description": "从解析结果和规则匹配结果中生成精简的通知摘要文本，包含类型、重要程度、截止时间、地点、加分点等关键信息，支持用户一键复制分享。",
+  "icon": "",
+  "paramsSchema": {
+    "type": "object",
+    "properties": {
+      "raw_notification_content": {
+        "type": "string",
+        "description": "待处理的原始通知内容（包含解析结果和规则匹配结果）"
+      }
+    },
+    "required": [
+      "raw_notification_content"
+    ]
+  },
+  "formValue": {
+    "content": "{{input.raw_notification_content}}",
+    "requirement": "请将上述通知内容提炼为精简摘要，严格按照以下结构输出：\n1. 通知类型\n2. 重要程度\n3. 截止时间\n4. 地点\n5. 加分点/注意事项\n要求内容简洁明了，关键信息无遗漏，格式清晰易读，方便用户直接复制分享。"
+  },
+  "createdAt": 1789292715307,
+  "updatedAt": 1789292715307,
+  "createdBy": 7581252076924046535
+}

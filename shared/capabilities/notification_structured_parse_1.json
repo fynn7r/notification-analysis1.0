@@ -1,0 +1,73 @@
+{
+  "id": "notification_structured_parse_1",
+  "pluginKey": "@official-plugins/ai-text-to-json",
+  "pluginVersion": "1.0.26",
+  "name": "通知结构化解析",
+  "description": "从用户粘贴的通知原文中提取关键信息并结构化输出，包含通知类型、时间、地点、参与要求等核心字段",
+  "icon": "",
+  "paramsSchema": {
+    "properties": {
+      "notification_content": {
+        "type": "string",
+        "description": "待解析的通知原文内容"
+      }
+    },
+    "required": [
+      "notification_content"
+    ],
+    "type": "object"
+  },
+  "formValue": {
+    "prompt": "你是一位专业的信息提取专家，请从以下通知原文中精准提取所有关键信息。\n\n通知原文：\n{{input.notification_content}}\n\n提取规则：\n1. 严格按照给定的JSON结构输出，不允许添加额外字段\n2. 未找到的信息填空字符串，不允许返回null或省略字段\n3. 日期时间统一格式为YYYY-MM-DD HH:MM:SS，若只有日期则填YYYY-MM-DD，若只有时间则填HH:MM:SS\n4. 多个值的字段用英文分号分隔拼接为字符串\n5. 确保提取的信息准确无误，不添加主观推断内容",
+    "jsonStructure": [
+      {
+        "name": "notification_type",
+        "paramDescription": "通知类型，如活动报名、赛事通知、会议通知、培训通知等",
+        "paramType": "String"
+      },
+      {
+        "name": "registration_deadline",
+        "paramDescription": "报名截止时间",
+        "paramType": "String"
+      },
+      {
+        "name": "activity_time",
+        "paramDescription": "活动举办时间",
+        "paramType": "String"
+      },
+      {
+        "name": "submission_location",
+        "paramDescription": "材料提交位置或活动举办地点",
+        "paramType": "String"
+      },
+      {
+        "name": "participants",
+        "paramDescription": "参加对象或适用人群",
+        "paramType": "String"
+      },
+      {
+        "name": "work_requirements",
+        "paramDescription": "作品要求或参与要求",
+        "paramType": "String"
+      },
+      {
+        "paramType": "String",
+        "name": "contact_information",
+        "paramDescription": "联系方式，包括联系人、电话、邮箱等"
+      },
+      {
+        "name": "related_links",
+        "paramDescription": "相关链接或附件地址",
+        "paramType": "String"
+      }
+    ],
+    "modelID": "2015",
+    "modelParams": {
+      "maxTokens": 8192,
+      "temperature": 0.5
+    }
+  },
+  "createdAt": 1789292722317,
+  "updatedAt": 1789292722317,
+  "createdBy": 7581252076924046535
+}

@@ -1,0 +1,52 @@
+{
+  "id": "notification_implied_meaning_interpretation_1",
+  "pluginKey": "@official-plugins/ai-text-to-json",
+  "pluginVersion": "1.0.26",
+  "name": "话里有话深度解读插件实例",
+  "description": "从通知原文中提取潜台词、言外之意和关键暗示，结合规则库给出每条解读的行动建议，输出结构化的解读条目。",
+  "icon": "",
+  "paramsSchema": {
+    "type": "object",
+    "properties": {
+      "notification_content": {
+        "description": "需要解读的通知原文内容",
+        "type": "string"
+      },
+      "rule_base_context": {
+        "type": "string",
+        "description": "相关规则库上下文信息，用于辅助解读"
+      }
+    },
+    "required": [
+      "notification_content"
+    ]
+  },
+  "formValue": {
+    "modelID": "2015",
+    "modelParams": {
+      "maxTokens": 8192,
+      "temperature": 0.5
+    },
+    "prompt": "你是一位专业的职场通知解读专家，擅长从官方通知、工作邮件、群消息等文本中识别潜台词、言外之意和关键暗示。\n\n请对以下通知内容进行深度解读：\n通知原文：{{input.notification_content}}\n规则库上下文：{{input.rule_base_context}}\n\n解读要求：\n1. 全面提取通知中的显性信息和隐性暗示，不遗漏重要细节\n2. 准确识别言外之意和潜台词，结合职场语境和规则背景进行合理推断\n3. 为每条解读提供明确的行动建议，行动建议应具体、可落地，例如：建议尽快报名、建议提前准备材料、建议确认报名条件、建议咨询相关负责人等\n4. 解读内容需客观中立，基于文本内容进行分析，避免过度臆测\n5. 如果有不确定的解读内容，请明确标注\"待确认\"",
+    "jsonStructure": [
+      {
+        "paramDescription": "通知原文的核心内容摘要，简要概括通知的主要事项",
+        "paramType": "String",
+        "name": "original_notification_summary"
+      },
+      {
+        "name": "interpretation_items",
+        "paramDescription": "解读条目列表，items schema: {interpretation_content: string(解读内容，包含潜台词、言外之意、关键暗示), action_suggestion: string(对应行动建议), confidence: string(可信度：高/中/低), remarks: string(备注说明，如待确认等)}",
+        "paramType": "Array"
+      },
+      {
+        "paramType": "String",
+        "name": "overall_suggestion",
+        "paramDescription": "针对整个通知的综合行动建议，给出优先级排序和注意事项"
+      }
+    ]
+  },
+  "createdAt": 1789399498375,
+  "updatedAt": 1789399498375,
+  "createdBy": 7581252076924046535
+}

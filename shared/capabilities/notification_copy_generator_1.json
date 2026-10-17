@@ -1,0 +1,71 @@
+{
+  "id": "notification_copy_generator_1",
+  "pluginKey": "@official-plugins/ai-text-generate",
+  "pluginVersion": "1.0.21",
+  "name": "通知文案智能生成",
+  "description": "根据用户提供的活动关键信息，智能生成多种风格的正式完整通知文案，支持官方正式风、班级通知风、社团活动风、社区通知风，可选择是否加入表情符号装饰。",
+  "icon": "",
+  "paramsSchema": {
+    "type": "object",
+    "properties": {
+      "topic": {
+        "type": "string",
+        "description": "通知主题"
+      },
+      "location": {
+        "type": "string",
+        "description": "活动地点"
+      },
+      "requirements": {
+        "type": "string",
+        "description": "活动要求"
+      },
+      "activity_type": {
+        "type": "string",
+        "description": "活动类型"
+      },
+      "time": {
+        "description": "活动时间",
+        "type": "string"
+      },
+      "participants": {
+        "type": "string",
+        "description": "参加对象"
+      },
+      "registration_method": {
+        "type": "string",
+        "description": "报名方式"
+      },
+      "notes": {
+        "type": "string",
+        "description": "注意事项"
+      },
+      "style": {
+        "type": "string",
+        "description": "通知风格（可选值：官方正式风、班级通知风、社团活动风、社区通知风）"
+      },
+      "enable_emoji": {
+        "type": "string",
+        "description": "是否启用活泼风模式（加入表情符号装饰），可选值：是/否"
+      }
+    },
+    "required": [
+      "topic",
+      "time",
+      "location",
+      "participants",
+      "style"
+    ]
+  },
+  "formValue": {
+    "prompt": "你是一位专业的通知文案撰写专家，擅长根据不同场景和受众需求，撰写规范、清晰、得体的通知文案。\n\n请根据以下提供的信息，生成一份完整的通知文案：\n\n基础信息：\n- 通知主题：{{input.topic}}\n- 活动类型：{{input.activity_type}}\n- 活动时间：{{input.time}}\n- 活动地点：{{input.location}}\n- 参加对象：{{input.participants}}\n- 报名方式：{{input.registration_method}}\n- 活动要求：{{input.requirements}}\n- 注意事项：{{input.notes}}\n\n风格要求：\n1. 整体风格：{{input.style}}\n2. 是否加入表情符号装饰：{{input.enable_emoji}}\n\n文案结构要求：\n1. 标题：清晰明确，包含通知核心主题，符合所选风格特点\n2. 称呼：针对参加对象的合适称呼\n3. 正文：\n   - 开头说明通知目的和活动背景\n   - 详细说明活动时间、地点、内容、参加对象等核心信息\n   - 明确报名方式、截止时间（如果有）\n   - 清晰列出活动要求和注意事项\n   - 结尾表达期待或感谢\n4. 落款：适当的发布单位和发布时间占位\n\n其他要求：\n- 内容完整，逻辑清晰，信息准确\n- 语言表达符合所选风格的语气特点\n- 关键信息醒目，易于快速获取\n- 如某项信息未提供，可根据风格特点合理省略或使用通用表述\n- 表情符号仅在启用活泼风模式时使用，且使用得当，不影响信息可读性",
+    "modelID": "2015",
+    "modelParams": {
+      "maxTokens": 8192,
+      "temperature": 0.5
+    }
+  },
+  "createdAt": 1789399502515,
+  "updatedAt": 1789399502515,
+  "createdBy": 7581252076924046535
+}

@@ -1,0 +1,46 @@
+{
+  "id": "notification_rule_match_analysis_1",
+  "pluginKey": "@official-plugins/ai-categorization",
+  "pluginVersion": "1.0.21",
+  "name": "通知规则库匹配分析",
+  "description": "将解析出的通知内容与规则库条目进行匹配，判断对应的加分项目、分值等级、匹配依据以及重要程度判断理由。",
+  "icon": "",
+  "paramsSchema": {
+    "type": "object",
+    "properties": {
+      "notification_content": {
+        "type": "string",
+        "description": "待分析的通知文本内容"
+      }
+    },
+    "required": [
+      "notification_content"
+    ]
+  },
+  "formValue": {
+    "categories": [
+      {
+        "name": "一级加分项目"
+      },
+      {
+        "name": "二级加分项目"
+      },
+      {
+        "name": "三级加分项目"
+      },
+      {
+        "name": "无匹配加分项目"
+      }
+    ],
+    "customRequirements": "请根据规则库对输入的通知文本进行匹配分析，输出以下信息：1. 匹配到的加分项目名称；2. 对应的分值等级；3. 具体匹配依据；4. 重要程度判断理由。如果没有匹配到任何加分项目，请明确说明。",
+    "modelID": "2015",
+    "modelParams": {
+      "maxTokens": 8192,
+      "temperature": 0.5
+    },
+    "textToBeCategorized": "{{input.notification_content}}"
+  },
+  "createdAt": 1789292715841,
+  "updatedAt": 1789292715841,
+  "createdBy": 7581252076924046535
+}
