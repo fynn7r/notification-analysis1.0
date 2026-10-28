@@ -10,11 +10,9 @@ build/
 
 # Environment files
 .env.local
-.env.wechat.local
 .env
 .env.*
 !.env.example
-!.env.wechat.example
 dist-standalone/
 test-results/
 playwright-report/
