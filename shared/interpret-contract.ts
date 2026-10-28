@@ -1,4 +1,5 @@
 import { z } from 'zod';
+import { knowledgeAnalysisSchema, modelKnowledgeSchema } from './parse-contract.ts';
 
 export const interpretRequestSchema = z.object({
   text: z.string().trim().min(1, '请先提供通知原文').max(20000, '通知原文暂限20000字以内'),
@@ -15,5 +16,11 @@ export const interpretationSchema = z.object({
     evidence: z.string().trim().min(1).max(2000),
   })).min(1).max(6),
   overall_suggestion: z.string().trim().min(1).max(2000),
+  knowledge: modelKnowledgeSchema,
 });
-export const interpretResponseSchema = interpretationSchema.extend({ source: z.literal('real') });
+
+/** 对外响应：knowledge 已由服务端换成可核验的条目身份。 */
+export const interpretResponseSchema = interpretationSchema.omit({ knowledge: true }).extend({
+  source: z.literal('real'),
+  knowledge: knowledgeAnalysisSchema.optional(),
+});

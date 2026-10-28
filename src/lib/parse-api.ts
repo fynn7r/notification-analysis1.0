@@ -24,7 +24,7 @@ export async function parseWithApi(text: string, referenceDate: string, timezone
   }
   const checked = parseResponseSchema.safeParse(payload);
   if (!checked.success) throw new Error('解析结果格式无效，未保存结果，请重试。');
-  const { notification, action, warnings } = checked.data;
+  const { notification, action, warnings, knowledge } = checked.data;
   return {
     ...notification,
     registrationDeadline: notification.registrationDeadline ?? undefined,
@@ -34,5 +34,6 @@ export async function parseWithApi(text: string, referenceDate: string, timezone
     primaryAction: { title: action.title || '', deadline: action.deadline ?? undefined, remindAt: action.remindAt ?? undefined },
     parseContext: { referenceDate, timezone }, timeWarnings: warnings,
     detectedMediaLinks: extractMediaLinks(text), mediaAttachments: [], supplements: [],
+    ...(knowledge ? { knowledge } : {}),
   };
 }

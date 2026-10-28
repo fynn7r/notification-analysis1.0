@@ -14,6 +14,7 @@
 
 import { Routes, Route } from 'react-router-dom';
 import { Layout } from '@/components/Layout';
+import { AuthProvider } from '@/hooks/useAuth';
 import NotFoundPage from '@/pages/NotFoundPage/NotFoundPage';
 import ParsePage from '@/pages/ParsePage/ParsePage';
 import RulesPage from '@/pages/RulesPage/RulesPage';
@@ -21,19 +22,23 @@ import RemindersPage from '@/pages/RemindersPage/RemindersPage';
 import HistoryPage from '@/pages/HistoryPage/HistoryPage';
 import GeneratorPage from '@/pages/GeneratorPage/GeneratorPage';
 import ProfilePage from '@/pages/ProfilePage/ProfilePage';
+import LoginPage from '@/pages/LoginPage/LoginPage';
 
 export default function App() {
   return (
-    <Routes>
-      <Route element={<Layout />}>
-        <Route index element={<ParsePage />} />
-        <Route path="generator" element={<GeneratorPage />} />
-        <Route path="rules" element={<RulesPage />} />
-        <Route path="reminders" element={<RemindersPage />} />
-        <Route path="history" element={<HistoryPage />} />
-        <Route path="profile" element={<ProfilePage />} />
-        <Route path="*" element={<NotFoundPage />} />
-      </Route>
-    </Routes>
+    <AuthProvider>
+      <Routes>
+        <Route element={<Layout />}>
+          <Route index element={<ParsePage />} />
+          <Route path="generator" element={<GeneratorPage />} />
+          <Route path="rules" element={<RulesPage />} />
+          <Route path="reminders" element={<RemindersPage />} />
+          <Route path="history" element={<HistoryPage />} />
+          <Route path="profile" element={<ProfilePage />} />
+          <Route path="login" element={<LoginPage />} />
+          <Route path="*" element={<NotFoundPage />} />
+        </Route>
+      </Routes>
+    </AuthProvider>
   );
 }

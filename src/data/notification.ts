@@ -11,6 +11,11 @@
  */
 
 import { getFutureDate } from '@/lib/date-utils';
+import type { knowledgeAnalysisSchema } from '@shared/parse-contract';
+import type { z } from 'zod';
+
+/** 服务端校验后的知识引用；只在登录并使用知识库时出现。 */
+export type IKnowledgeAnalysis = z.infer<typeof knowledgeAnalysisSchema>;
 
 export type NotificationType =
   | '比赛竞赛'
@@ -36,6 +41,7 @@ export interface IImpliedMeaning {
   interpretation_items: IInterpretationItem[];
   overall_suggestion: string;
   source: 'mock' | 'real';
+  knowledge?: IKnowledgeAnalysis;
 }
 
 export interface IMatchedRule {
@@ -90,6 +96,7 @@ export interface INotification {
   detectedMediaLinks?: string[];
   source: 'mock' | 'real';
   parsedAt: number;
+  knowledge?: IKnowledgeAnalysis;
 }
 
 export interface IHistoryItem {

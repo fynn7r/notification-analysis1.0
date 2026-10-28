@@ -33,10 +33,14 @@ import { useProfile } from '@/hooks/useProfile';
 import { useGoals } from '@/hooks/useGoals';
 import ModelSettings from '@/components/ModelSettings';
 import { IS_STANDALONE } from '@/lib/parse-api';
+import { Link, useNavigate } from 'react-router-dom';
+import { useAuth } from '@/hooks/useAuth';
 
 export default function ProfilePage() {
   const { profile, updateProfile, requestNotificationPermission } = useProfileHook();
   const { goals, addGoal, removeGoal } = useGoals();
+  const { user, logout } = useAuth();
+  const navigate = useNavigate();
   const [newGoal, setNewGoal] = useState('');
   const [saved, setSaved] = useState(false);
 
@@ -81,6 +85,39 @@ export default function ProfilePage() {
         </div>
 
         {IS_STANDALONE && <ModelSettings />}
+
+        {/* 账号 */}
+        <Card className="mb-4">
+          <CardHeader className="pb-3">
+            <CardTitle className="flex items-center gap-2 text-base">
+              <User className="size-4 text-primary" />
+              账号
+            </CardTitle>
+          </CardHeader>
+          <CardContent>
+            {user ? (
+              <div className="flex flex-wrap items-center justify-between gap-3">
+                <p className="text-sm text-muted-foreground">
+                  已登录：{user.displayName}（{user.role === 'admin' ? '管理员' : '普通用户'}）
+                </p>
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={() => { void logout().then(() => navigate('/login')); }}
+                >
+                  退出登录
+                </Button>
+              </div>
+            ) : (
+              <div className="flex flex-wrap items-center justify-between gap-3">
+                <p className="text-sm text-muted-foreground">未登录，无法使用云端知识库与解析功能。</p>
+                <Button asChild size="sm">
+                  <Link to="/login">登录 / 注册</Link>
+                </Button>
+              </div>
+            )}
+          </CardContent>
+        </Card>
 
         {/* 个人信息 */}
         <Card className="mb-4">

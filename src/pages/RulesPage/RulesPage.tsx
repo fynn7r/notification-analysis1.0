@@ -1,4 +1,5 @@
 import { useState, useCallback, useRef } from 'react';
+import { Link, useNavigate } from 'react-router-dom';
 import { toast } from 'sonner';
 import { capabilityClient } from '@lark-apaas/client-toolkit-lite';
 import { motion, AnimatePresence } from 'framer-motion';
@@ -51,7 +52,9 @@ import {
   AlertDialogTitle,
   AlertDialogTrigger,
 } from '@/components/ui/alert-dialog';
-import { useRules } from '@/hooks/useRules';
+import { useLibrary } from '@/hooks/useLibrary';
+import { useAuth } from '@/hooks/useAuth';
+import type { Scope } from '@/lib/knowledge-api';
 import { useGoals } from '@/hooks/useGoals';
 import { PLUGIN_DOC_PARSER } from '@/lib/plugin-instances';
 import type { RuleDocumentParserOneOutput } from '@shared/plugin-types';
@@ -60,6 +63,7 @@ import { generateShareCode, parseShareCode } from '@/lib/share-code';
 import type { IRule } from '@/data/rule';
 import { IS_STANDALONE } from '@/lib/parse-api';
 import { readRuleDocument } from '@/lib/rule-document-api';
+import { importLegacy } from '@/lib/knowledge-api';
 import { storage } from '@/lib/storage';
 import { MAX_RULE_CONTENT_CHARS } from '@shared/rule-document-contract';
 import RuleDocumentEditor, { cleanRuleHtml } from '@/components/RuleDocumentEditor';
@@ -67,7 +71,13 @@ import { saveRuleLayout, getRuleLayout, deleteRuleLayout, type StoredRuleLayout 
 import { genId } from '@/lib/utils';
 
 export default function RulesPage() {
-  const { rules, addRule, updateRule, deleteRule, clearMockRules, loading: rulesLoading } = useRules();
+  const { user, logout } = useAuth();
+  const navigate = useNavigate();
+  const [scope, setScope] = useState<Scope>('personal');
+  const {
+    rules, addRule, updateRule, deleteRule, clearMockRules, loading: rulesLoading,
+    canWrite, remote, error: libraryError, refresh: refreshLibrary,
+  } = useLibrary(scope);
   const { goals, addGoal, removeGoal, loading: goalsLoading } = useGoals();
 
   const [textInput, setTextInput] = useState('');
@@ -102,6 +112,39 @@ export default function RulesPage() {
   const [importing, setImporting] = useState(false);
 
   const hasMockRules = rules.some((r) => r.source === 'mock');
+
+  // 登录后仅在用户主动点击时才导入，旧数据原样保留在浏览器里。
+  const [legacyRules] = useState<IRule[]>(() => storage.getRules<IRule[]>([]));
+  const [importingLegacy, setImportingLegacy] = useState(false);
+
+  const handleImportLegacy = useCallback(async () => {
+    if (importingLegacy) return;
+    setImportingLegacy(true);
+    try {
+      const items = legacyRules
+        .filter((rule) => rule.title || rule.content)
+        .map((rule) => ({ legacyKey: rule.id, title: rule.title, category: rule.category, body: rule.content }));
+      if (!items.length) { toast.error('没有可导入的旧规则'); return; }
+      const result = await importLegacy(items);
+      // 排版跟随条目一起复制到新 id 下，原排版不删除，旧会话仍可用。
+      for (const rule of legacyRules) {
+        if (!rule.richDocumentId) continue;
+        const mapped = result.imported.find((item) => item.legacyKey === rule.id && !item.reused);
+        if (!mapped) continue;
+        try {
+          const layout = await getRuleLayout(rule.richDocumentId);
+          await saveRuleLayout(mapped.entryId, layout);
+        } catch { /* 排版缺失不影响文字导入 */ }
+      }
+      const reused = result.imported.filter((item) => item.reused).length;
+      toast.success(`已导入 ${result.imported.length - reused} 条，跳过 ${reused} 条已导入过的`);
+      await refreshLibrary();
+    } catch (error) {
+      toast.error(error instanceof Error ? error.message : '导入失败，旧规则未被改动');
+    } finally {
+      setImportingLegacy(false);
+    }
+  }, [importingLegacy, legacyRules, refreshLibrary]);
 
   // 生成分享码
   const handleGenerateShare = useCallback(() => {
@@ -178,7 +221,7 @@ export default function RulesPage() {
       }
 
       for (const rule of toImport) {
-        addRule(rule);
+        await addRule(rule);
       }
 
       toast.success(`成功导入 ${toImport.length} 条规则`);
@@ -229,7 +272,7 @@ export default function RulesPage() {
           });
 
         if (result.content) {
-          addRule({
+          await addRule({
             title: file.name.replace(/\.[^.]+$/, ''),
             category: '自定义规则',
             content: result.content,
@@ -322,14 +365,17 @@ export default function RulesPage() {
         content: textInput.trim(), score: previous?.score,
         source: previous?.source || (importedFilename ? 'file' : 'text'), richDocumentId: documentId,
       };
-      const saved = previous ? { ...previous, ...fields } : addRule(fields);
-      if (previous) updateRule(previous.id, fields);
-      const persisted = storage.getRules<IRule[]>([]).find((rule) => rule.id === saved.id);
-      if (IS_STANDALONE && (!persisted || persisted.content !== fields.content || persisted.title !== fields.title
-        || persisted.category !== fields.category || persisted.richDocumentId !== documentId)) {
-        if (previous) updateRule(previous.id, previous);
-        else await deleteRule(saved.id);
-        throw new Error('规则未保存，请释放浏览器存储空间后重试；填写内容已保留。');
+      const saved = previous ? { ...previous, ...fields } : await addRule(fields);
+      if (!saved) throw new Error(remote ? '规则未保存到服务端，请检查登录状态后重试；填写内容已保留。' : '规则未保存，请重试；填写内容已保留。');
+      if (previous) await updateRule(previous.id, fields);
+      if (!remote) {
+        const persisted = storage.getRules<IRule[]>([]).find((rule) => rule.id === saved.id);
+        if (IS_STANDALONE && (!persisted || persisted.content !== fields.content || persisted.title !== fields.title
+          || persisted.category !== fields.category || persisted.richDocumentId !== documentId)) {
+          if (previous) updateRule(previous.id, previous);
+          else await deleteRule(saved.id);
+          throw new Error('规则未保存，请释放浏览器存储空间后重试；填写内容已保留。');
+        }
       }
       committed = true;
       if (previous?.richDocumentId) await deleteRuleLayout(previous.richDocumentId).catch(() => undefined);
@@ -399,15 +445,67 @@ export default function RulesPage() {
     <div className="w-full min-w-0">
       <div className="mx-auto max-w-4xl px-4 py-8 md:px-6 md:py-12">
         <div className="mb-8">
-          <h1 className="text-2xl font-bold tracking-tight md:text-3xl">规则库</h1>
-          <p className="mt-2 text-sm text-muted-foreground">
-            {IS_STANDALONE ? '导入规则文件或粘贴规则文本，核对后保存到本机规则库；AI 规则匹配待后续接入' : '导入规则文件或粘贴规则文本，AI 解析通知时会自动对照判断重要程度'}
-          </p>
+          <div className="flex flex-wrap items-start justify-between gap-3">
+            <div>
+              <h1 className="text-2xl font-bold tracking-tight md:text-3xl">知识库</h1>
+              <p className="mt-2 text-sm text-muted-foreground">
+                {remote
+                  ? `已登录：${user?.displayName}（${user?.role === 'admin' ? '管理员' : '普通用户'}）`
+                  : '当前未登录，下面是本机旧规则库；登录后可选择迁移到你的个人知识库。'}
+              </p>
+            </div>
+            {remote ? (
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={() => { void logout().then(() => navigate('/login')); }}
+              >
+                退出登录
+              </Button>
+            ) : (
+              <Button asChild variant="outline" size="sm">
+                <Link to="/login">登录 / 注册</Link>
+              </Button>
+            )}
+          </div>
+
+          {remote && (
+            <Tabs value={scope} onValueChange={(value) => setScope(value as Scope)} className="mt-4">
+              <TabsList className="grid w-full max-w-md grid-cols-2">
+                <TabsTrigger value="personal">个人知识库</TabsTrigger>
+                <TabsTrigger value="application">应用知识库</TabsTrigger>
+              </TabsList>
+            </Tabs>
+          )}
+
+          {remote && scope === 'application' && (
+            <p className="mt-3 rounded-md bg-muted px-3 py-2 text-xs text-muted-foreground">
+              {user?.role === 'admin'
+                ? '你是管理员，可以维护应用知识库；所有登录用户都能读取。'
+                : '应用知识库由管理员统一维护，你只能查看，不能修改。'}
+            </p>
+          )}
+
+          {remote && scope === 'personal' && legacyRules.length > 0 && (
+            <div className="mt-3 flex flex-wrap items-center justify-between gap-2 rounded-md border border-dashed px-3 py-2">
+              <span className="text-xs text-muted-foreground">
+                本机还有 {legacyRules.length} 条未归属账号的旧规则，导入只影响你的个人库，原数据保留不动。
+              </span>
+              <Button size="sm" variant="outline" disabled={importingLegacy} onClick={() => void handleImportLegacy()}>
+                {importingLegacy ? '导入中…' : '导入到个人知识库'}
+              </Button>
+            </div>
+          )}
+
+          {remote && libraryError && (
+            <p role="alert" className="mt-3 rounded-md bg-destructive/10 px-3 py-2 text-sm text-destructive">{libraryError}</p>
+          )}
         </div>
 
         <div className="grid min-w-0 gap-6 overflow-hidden lg:grid-cols-3">
           {/* 左侧：添加规则 */}
           <div className="space-y-6 min-w-0 lg:col-span-2">
+            {canWrite && (
             <Card id="rule-import-form">
               <CardHeader className="pb-3">
                 <CardTitle className="text-base">{editingRuleId ? '编辑规则' : '添加规则'}</CardTitle>
@@ -645,6 +743,7 @@ export default function RulesPage() {
                 {importError && <p role="alert" className="mt-3 text-sm text-destructive">{importError}</p>}
               </CardContent>
             </Card>
+            )}
 
             {/* 规则列表 */}
             <Card>

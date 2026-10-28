@@ -1,4 +1,4 @@
-import { useState, useCallback, useMemo, useEffect } from 'react';
+import { useState, useCallback, useMemo, useEffect, useRef, type ChangeEvent } from 'react';
 import { toast } from 'sonner';
 import { capabilityClient, logger } from '@lark-apaas/client-toolkit-lite';
 import { motion, AnimatePresence } from 'framer-motion';
@@ -11,6 +11,8 @@ import {
   FileText,
   ChevronDown,
   FilePlus,
+  Paperclip,
+  Link2,
   Trash2,
   X,
   Plus,
@@ -46,6 +48,9 @@ import { Badge } from '@/components/ui/badge';
 import ParseResultCard from '@/components/parse/ParseResultCard';
 import ReminderConfirmation, { type ConfirmedReminder } from '@/components/parse/ReminderConfirmation';
 import { IS_STANDALONE, parseWithApi } from '@/lib/parse-api';
+import { fetchWechatArticle, findWechatArticleUrls, isWechatArticleUrl, type IArticleImage } from '@/lib/article-api';
+import { readDocumentText } from '@/lib/rule-document-api';
+import { genId } from '@/lib/utils';
 import { interpretWithApi } from '@/lib/interpret-api';
 import { Link } from 'react-router-dom';
 import { DEFAULT_TIMEZONE, dateInTimezone } from '@shared/date-time';
@@ -74,6 +79,7 @@ import { useDebouncedCallback } from '@/hooks/use-debounce';
 import { getCurrentParseResult, useParseSession } from '@/hooks/useParseSession';
 import { storage } from '@/lib/storage';
 import { extractMediaLinks } from '@/lib/recurring-utils';
+import KnowledgeCitationCard from '@/components/KnowledgeCitationCard';
 import type { IMediaAttachment, ISupplementRecord } from '@/data/notification';
 
 const NOTIFICATION_TYPES: NotificationType[] = [
@@ -95,6 +101,46 @@ const REMIND_OFFSETS = [
 
 const SAMPLE_TEXT = MOCK_NOTIFICATION.rawText;
 
+/** 与参考材料一起送给模型的字数是有限额的，和服务端 parse 契约的 20000 字一致。 */
+const MATERIAL_BUDGET = 20000;
+
+interface IMaterial {
+  id: string;
+  kind: 'file' | 'link';
+  /** 文件用文件名，链接用原始 URL，用来避免重复抓取同一篇文章。 */
+  source: string;
+  label: string;
+  text: string;
+  chars: number;
+}
+
+/**
+ * 把参考材料拼到通知原文后面。原文永远优先占用额度，材料按顺序填充，装不下的明确告知用户。
+ */
+function mergeMaterials(baseText: string, materials: IMaterial[]): { text: string; notes: string[] } {
+  const notes: string[] = [];
+  if (materials.length === 0) return { text: baseText, notes };
+  const header = '\n\n━━━━━━━━━━━━━━━━━━━━━\n以下为用户一并提供的参考材料，用于补充通知中未说明的细节。材料与通知原文冲突时，请在解析结果的提示里说明冲突，不要静默取舍。\n━━━━━━━━━━━━━━━━━━━━━\n\n';
+  let used = baseText.length + header.length;
+  const parts: string[] = [];
+  materials.forEach((material, index) => {
+    const prefix = `【参考材料 ${index + 1}】${material.label}\n`;
+    const room = MATERIAL_BUDGET - used - prefix.length - 2;
+    if (room < 200) {
+      notes.push(`「${material.label}」没有纳入：内容已超过 20000 字上限。`);
+      return;
+    }
+    const slice = material.text.slice(0, room);
+    if (slice.length < material.text.length) {
+      notes.push(`「${material.label}」只用了前 ${slice.length} 字，其余超出上限。`);
+    }
+    parts.push(prefix + slice);
+    used += prefix.length + slice.length + 2;
+  });
+  if (parts.length === 0) return { text: baseText, notes };
+  return { text: `${baseText}${header}${parts.join('\n\n')}`, notes };
+}
+
 export default function ParsePage() {
   const { rules } = useRules();
   const { goals } = useGoals();
@@ -102,6 +148,7 @@ export default function ParsePage() {
   const { addHistory, updateHistoryItem, getHistoryById } = useHistory();
 
   const [inputText, setInputText] = useState('');
+  const [articleImages, setArticleImages] = useState<IArticleImage[]>([]);
   const [remindDialogOpen, setRemindDialogOpen] = useState(false);
   const [referenceDate, setReferenceDate] = useState(() => dateInTimezone(new Date()));
   const [apiStatus, setApiStatus] = useState('真实解析尚未验证：正在检查本地解析服务。');
@@ -162,13 +209,46 @@ export default function ParsePage() {
     },
     [saveDraft]
   );
-  const [selectedOffset, setSelectedOffset] = useState('2d');
-  const [summaryLoading, setSummaryLoading] = useState(false);
+  const [selectedOffset, setSelectedOffset] = useState('2d');  const [summaryLoading, setSummaryLoading] = useState(false);
   const [copied, setCopied] = useState(false);
   const [showSample, setShowSample] = useState(true);
   const [supplementDialogOpen, setSupplementDialogOpen] = useState(false);
   const [supplementInput, setSupplementInput] = useState('');
   const [supplementsExpanded, setSupplementsExpanded] = useState(true);
+  const [materials, setMaterials] = useState<IMaterial[]>([]);
+  const [attaching, setAttaching] = useState(false);
+  const materialInputRef = useRef<HTMLInputElement>(null);
+
+  const addMaterials = useCallback((incoming: IMaterial[]) => {
+    if (incoming.length === 0) return;
+    setMaterials((prev) => {
+      const seen = new Set(prev.map((item) => item.source));
+      return [...prev, ...incoming.filter((item) => !seen.has(item.source))];
+    });
+  }, []);
+
+  const handlePickMaterials = useCallback(async (event: ChangeEvent<HTMLInputElement>) => {
+    const files = Array.from(event.target.files ?? []);
+    event.target.value = '';
+    if (files.length === 0) return;
+    setAttaching(true);
+    try {
+      for (const file of files) {
+        try {
+          const document = await readDocumentText(file);
+          addMaterials([{
+            id: genId('material'), kind: 'file', source: file.name,
+            label: document.title || file.name, text: document.content, chars: document.content.length,
+          }]);
+          toast.success(`已读取「${file.name}」（${document.content.length} 字）`);
+        } catch (error) {
+          toast.error(error instanceof Error ? error.message : `「${file.name}」读取失败`);
+        }
+      }
+    } finally {
+      setAttaching(false);
+    }
+  }, [addMaterials]);
 
   // 完整解析 pipeline（字段提取 + 规则匹配 + 重要程度判断）
   const runParsePipeline = useCallback(
@@ -303,7 +383,7 @@ export default function ParsePage() {
 
   // 解析通知
   const handleParse = useCallback(async () => {
-    const text = inputText.trim();
+    let text = inputText.trim();
     if (!text) {
       toast.error('请先粘贴通知原文');
       return;
@@ -316,8 +396,57 @@ export default function ParsePage() {
     setSummaryText('');
 
     try {
+      // 只贴了公众号文章链接时，先把正文抓回来再解析，并回填到输入框，方便核对读到了什么。
+      if (IS_STANDALONE && isWechatArticleUrl(text)) {
+        const loading = toast.loading('正在读取文章正文与配图…');
+        try {
+          const article = await fetchWechatArticle(text);
+          text = article.text;
+          setInputText(text);
+          setArticleImages(article.images ?? []);
+          storage.setDraft(text);
+          const infoCount = (article.images ?? []).filter((item) => item.kind === 'info' && item.text).length;
+          const imageNote = infoCount > 0 ? `，读到 ${infoCount} 张配图的文字` : '';
+          toast.success(`已读取正文 ${article.chars} 字${imageNote}${article.truncated ? '，超出部分已截断' : ''}`);
+          // 「已读到配图文字」已并入成功提示，这里只提示需要用户注意的情况。
+          (article.warnings ?? []).filter((item) => !item.startsWith('已从')).forEach((item) => toast.warning(item));
+        } finally {
+          toast.dismiss(loading);
+        }
+      }
+      // 正文里夹着公众号链接时，把文章正文抓下来当参考材料；单篇失败不影响整体解析。
+      let activeMaterials = materials;
+      if (IS_STANDALONE) {
+        const known = new Set(materials.filter((item) => item.kind === 'link').map((item) => item.source));
+        const pending = findWechatArticleUrls(text).filter((url) => !known.has(url));
+        if (pending.length > 0) {
+          const loading = toast.loading('正在读取文章正文…');
+          const fetched: IMaterial[] = [];
+          try {
+            for (const url of pending) {
+              try {
+                const article = await fetchWechatArticle(url);
+                fetched.push({
+                  id: genId('material'), kind: 'link', source: url,
+                  label: article.title || url, text: article.text, chars: article.chars,
+                });
+              } catch (error) {
+                toast.error(error instanceof Error ? error.message : '文章读取失败，已跳过');
+              }
+            }
+          } finally {
+            toast.dismiss(loading);
+          }
+          if (fetched.length > 0) {
+            addMaterials(fetched);
+            activeMaterials = [...materials, ...fetched];
+          }
+        }
+      }
+      const merged = mergeMaterials(text, activeMaterials);
+      merged.notes.forEach((note) => toast.warning(note));
       // 首次解析也将补充内容与原文拼接后一并送入 AI
-      const fullText = buildFullText(text, supplements);
+      const fullText = buildFullText(merged.text, supplements);
       const parsed = await runParsePipeline(fullText);
       // 保留原始通知原文（输入框展示用，不被补充内容污染）
       parsed.rawText = text;
@@ -343,7 +472,7 @@ export default function ParsePage() {
     } finally {
       setParsing(false);
     }
-  }, [inputText, runParsePipeline, addHistory, supplements, buildFullText]);
+  }, [inputText, runParsePipeline, addHistory, supplements, buildFullText, materials, addMaterials]);
 
   // 生成摘要
   const handleGenerateSummary = useCallback(async () => {
@@ -596,8 +725,8 @@ export default function ParsePage() {
   const handleReParse = useCallback(async () => {
     if (!result) return;
 
-    // 用会话级 supplements + 原文拼接，确保与首次解析逻辑一致
-    const allText = buildFullText(result.rawText, supplements);
+    // 用会话级 supplements + 参考材料 + 原文拼接，确保与首次解析逻辑一致
+    const allText = buildFullText(mergeMaterials(result.rawText, materials).text, supplements);
 
     logger.info('[ReParse] supplements count:', supplements.length);
 
@@ -629,7 +758,7 @@ export default function ParsePage() {
     } finally {
       setParsing(false);
     }
-  }, [result, runParsePipeline, updateHistoryItem, supplements, buildFullText]);
+  }, [result, runParsePipeline, updateHistoryItem, supplements, buildFullText, materials]);
 
   return (
     <div className="w-full min-w-0 overflow-hidden">
@@ -662,10 +791,84 @@ export default function ParsePage() {
                aria-label="通知原文"
                value={inputText}
                onChange={handleInputChange}
-               placeholder="粘贴班级群/社区群通知原文..."
+               placeholder="粘贴班级群/社区群通知原文，或直接贴微信公众号文章链接..."
                className="min-h-[160px] resize-y rounded-lg border-border/60 text-sm leading-relaxed focus-visible:ring-1 break-all"
              />
              {parseError && <p role="alert" className="mt-3 text-sm text-destructive">{parseError}</p>}
+             {materials.length > 0 && (
+               <div className="mt-3 space-y-2">
+                 {materials.map((material) => (
+                   <div key={material.id} className="flex items-center gap-2 rounded-lg border border-border/60 bg-muted/40 px-3 py-2 text-xs">
+                     {material.kind === 'link'
+                       ? <Link2 className="size-3.5 shrink-0 text-muted-foreground" />
+                       : <FileText className="size-3.5 shrink-0 text-muted-foreground" />}
+                     <span className="min-w-0 flex-1 truncate" title={material.label}>{material.label}</span>
+                     <span className="shrink-0 tabular-nums text-muted-foreground">{material.chars} 字</span>
+                     <button
+                       type="button"
+                       className="shrink-0 rounded p-0.5 text-muted-foreground hover:text-destructive"
+                       aria-label={`移除参考材料 ${material.label}`}
+                       onClick={() => setMaterials((prev) => prev.filter((item) => item.id !== material.id))}
+                     >
+                       <X className="size-3.5" />
+                     </button>
+                   </div>
+                 ))}
+                 <p className="text-xs text-muted-foreground">参考材料与通知原文一起送入解析，原文优先，合计上限 20000 字。</p>
+               </div>
+             )}
+             {articleImages.length > 0 && (
+               <div className="mt-3 space-y-2 rounded-lg border border-border/60 bg-muted/30 p-3">
+                 <div className="flex flex-wrap items-center justify-between gap-2 text-xs">
+                   <span className="text-muted-foreground">
+                     文章配图 {articleImages.length} 张，其中 {articleImages.filter((item) => item.kind === 'info' && item.text).length} 张读到文字
+                   </span>
+                   <button
+                     type="button"
+                     className="rounded px-1 text-muted-foreground underline underline-offset-2 hover:text-foreground"
+                     onClick={() => setArticleImages([])}
+                   >
+                     清除配图
+                   </button>
+                 </div>
+                 <div className="flex flex-wrap gap-2">
+                   {articleImages.map((image) => (
+                     <a
+                       key={image.index}
+                       href={image.url}
+                       target="_blank"
+                       rel="noreferrer"
+                       title={image.kind === 'info' ? image.text : image.kind === 'qr' ? '二维码' : '装饰图'}
+                       className="relative block shrink-0"
+                     >
+                       <img
+                         src={image.url}
+                         alt={`配图 ${image.index}`}
+                         referrerPolicy="no-referrer"
+                         loading="lazy"
+                         className="size-16 rounded-md border border-border/60 object-cover"
+                       />
+                       <span className="absolute left-0 top-0 rounded-tl-md bg-black/55 px-1 text-[10px] leading-4 text-white">{image.index}</span>
+                       {image.kind !== 'info' && (
+                         <span className="absolute bottom-0 right-0 rounded-br-md bg-black/55 px-1 text-[10px] leading-4 text-white">
+                           {image.kind === 'qr' ? '码' : image.kind === 'unread' ? '未读' : '图'}
+                         </span>
+                       )}
+                     </a>
+                   ))}
+                 </div>
+                 {articleImages.some((item) => item.kind === 'info' && item.text) && (
+                   <ul className="space-y-1 text-xs leading-relaxed text-muted-foreground">
+                     {articleImages.filter((item) => item.kind === 'info' && item.text).map((image) => (
+                       <li key={image.index} className="break-all">
+                         <span className="font-medium text-foreground">图 {image.index}：</span>{image.text}
+                       </li>
+                     ))}
+                   </ul>
+                 )}
+                 <p className="text-xs text-muted-foreground">图中文字由视觉模型誊抄，已并入正文参与解析；关键时间地点请对照原图核对。</p>
+               </div>
+             )}
               <div className="mt-4 flex flex-wrap items-center justify-between gap-3">
                 <div className="flex-1 min-w-[180px] text-xs text-muted-foreground leading-relaxed">
                   {IS_STANDALONE ? <span>解析后请核对截止时间与活动时间，默认提前30分钟提醒。</span> : rules.length > 0 ? (
@@ -677,6 +880,26 @@ export default function ParsePage() {
                   )}
                 </div>
                 <div className="flex items-center gap-2 shrink-0">
+                  <input
+                    ref={materialInputRef}
+                    type="file"
+                    multiple
+                    accept=".pdf,.doc,.docx,.txt"
+                    className="hidden"
+                    onChange={handlePickMaterials}
+                  />
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    type="button"
+                    disabled={attaching || parsing}
+                    onClick={() => materialInputRef.current?.click()}
+                  >
+                    {attaching
+                      ? <Loader2 className="mr-1.5 size-4 animate-spin" />
+                      : <Paperclip className="mr-1.5 size-4" />}
+                    附加文件
+                  </Button>
                   <Dialog
                     open={supplementDialogOpen}
                     onOpenChange={(v) => {
@@ -858,6 +1081,9 @@ export default function ParsePage() {
               exit={{ opacity: 0, y: -16 }}
               transition={{ duration: 0.3 }}
             >
+              {/* 知识库引用 */}
+              {result.knowledge && <KnowledgeCitationCard knowledge={result.knowledge} />}
+
               {/* 操作栏 */}
               <div className="mb-4 flex flex-wrap items-center justify-between gap-2">
                 <div className="flex items-center gap-2">

@@ -2,6 +2,7 @@ import { useState, useRef, useCallback, useMemo } from 'react';
 import { toast } from 'sonner';
 import { Badge } from '@/components/ui/badge';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
+import KnowledgeCitationCard from '@/components/KnowledgeCitationCard';
 import { Separator } from '@/components/ui/separator';
 import { Button } from '@/components/ui/button';
 import { Textarea } from '@/components/ui/textarea';
@@ -487,6 +488,11 @@ export default function ParseResultCard({
         onGenerate={onGenerateImpliedMeaning}
         isLoading={impliedMeaningLoading}
       />
+      {notification.impliedMeaning?.knowledge && (
+        <div className="mt-3">
+          <KnowledgeCitationCard knowledge={notification.impliedMeaning.knowledge} />
+        </div>
+      )}
       {impliedMeaningError && <p role="alert" className="text-sm text-destructive">{impliedMeaningError}</p>}
 
       {/* 规则匹配卡 */}

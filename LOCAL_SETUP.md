@@ -1,27 +1,38 @@
-# 通知智析：独立本地运行
+# 通知智析：本地运行与详细配置
 
-需要 Node.js 24 或更新版本。原平台入口和构建命令保留不变，独立运行不需要登录原平台。
+需要 Node.js 22.13 或更高版本。独立运行不需要登录任何平台。
 
-## 配置与启动
+## 最快路径
 
-在 `daima` 目录运行：
-
-```powershell
-npm.cmd install
-if (-not (Test-Path -LiteralPath '.env.local')) {
-  Copy-Item -LiteralPath '.env.example' -Destination '.env.local'
-}
+```bash
+npm install
+npm start
 ```
 
-可以先启动，再到“我的 → 模型接入”填写密钥和模型；也可以直接编辑 `.env.local`。默认地址为 `https://api.deepseek.com`，默认模型为 `deepseek-flash`。密钥仅保存于本机 Node 服务端；独立网页请求本地 `/api/parse`、`/api/interpret` 和 `/api/generate` 接口。模型配置保存后立即用于后续请求，无需重启；更改监听端口才需要重启。
+首次启动会自动生成 `.env.local`、构建前端、并创建管理员账号（密码只打印一次）。打开 <http://127.0.0.1:8001> 即可使用。
+
+以下内容针对需要自定义的场合。日常使用看 [README](README.md) 就够。
+
+## 开发模式
+
+```bash
+npm run dev:standalone
+```
+
+前端 8001（热更新），解析服务 3001（仅监听本机）。`API_PORT` 可在 `.env.local` 中调整。
+
+手动准备配置文件（用 `npm start` 时会自动生成，一般不需要）：
+
+```bash
+cp .env.example .env.local          # macOS / Linux
+Copy-Item .env.example .env.local   # Windows PowerShell
+```
+
+可以先启动，再到「我的 → 模型接入」填写密钥和模型；也可以直接编辑 `.env.local`。默认地址为 `https://api.deepseek.com`，默认模型为 `deepseek-flash`。密钥仅保存于本机 Node 服务端；独立网页请求本地 `/api/parse`、`/api/interpret` 和 `/api/generate` 接口。模型配置保存后立即用于后续请求，无需重启；更改监听端口才需要重启。
 
 官方 DeepSeek 请求显式关闭思考模式，直接输出 JSON，保留 2048 token 输出上限。其他兼容服务不发送 DeepSeek 专用参数。达到输出上限、返回空内容和字段格式无效分别提示，不自动重试，也不会把失败结果写入历史。
 
-```powershell
-npm.cmd run dev:standalone
-```
-
-打开 <http://127.0.0.1:8001>。前端监听 8001，解析服务仅监听本机 3001；`API_PORT` 可在 `.env.local` 中调整。浏览器与 Node 服务使用相同的端口配置。
+打开 <http://127.0.0.1:8001>。用 `npm start` 时端口由 `PORT` 决定，默认同样是 8001。
 
 没有密钥也可以打开页面，查看已有界面和待办，但真实解析会明确显示“真实解析尚未验证”，不会返回模拟成功结果。首页“加载示例”仅加载标记为示例的静态数据。
 

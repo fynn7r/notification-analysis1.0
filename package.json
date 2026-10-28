@@ -1,13 +1,25 @@
 {
-  "name": "miaoda-vite-react-app",
+  "name": "notizhi",
   "version": "0.1.0",
+  "description": "通知智析：把群通知与公众号文章解析成结构化待办，支持双知识库与配图文字识别",
+  "license": "MIT",
   "private": true,
   "type": "module",
+  "engines": {
+    "node": ">=22.13"
+  },
   "scripts": {
+    "start": "node scripts/start.mjs",
     "dev:standalone": "concurrently --kill-others --names api,web \"node --watch server/index.mjs\" \"vite --config vite.standalone.config.ts\"",
     "build:standalone": "vite build --config vite.standalone.config.ts",
     "preview:standalone": "concurrently --kill-others --names api,web \"node server/index.mjs\" \"vite preview --config vite.standalone.config.ts\"",
-    "test:api": "node --test server/parse.test.mjs server/generate.test.mjs server/interpret.test.mjs server/ai-settings.test.mjs server/rule-document.test.mjs",
+    "test:api": "node --test server/parse.test.mjs server/generate.test.mjs server/interpret.test.mjs server/ai-settings.test.mjs server/rule-document.test.mjs server/knowledge.test.mjs server/remote.test.mjs server/article-extract.test.mjs server/vision-service.test.mjs server/static-server.test.mjs",
+    "test:knowledge": "node --test server/knowledge.test.mjs",
+    "admin:knowledge": "node scripts/knowledge-admin.mjs",
+    "dev:remote": "node server/remote.mjs",
+    "dev:wechat-gate": "node --watch server/wechat-gate.mjs",
+    "test:wechat-gate": "node --test server/wechat-gate.test.mjs",
+    "verify:wechat": "node scripts/wechat-preflight.mjs",
     "test:browser": "playwright test",
     "verify:live": "node scripts/verify-live-parse.mjs",
     "verify:generate:live": "node scripts/verify-live-generate.mjs",

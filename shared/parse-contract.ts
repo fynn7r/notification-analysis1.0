@@ -18,6 +18,23 @@ const dateEvidenceSchema = z.object({
   evidence: z.string(),
 });
 
+export const knowledgeScopes = ['personal', 'application'] as const;
+
+/** 模型只允许返回编号（K1/K2…），服务端再换成真实条目身份。 */
+export const modelKnowledgeSchema = z.object({
+  used: z.boolean().default(false),
+  summary: z.string().max(800).default(''),
+  citations: z.array(z.object({
+    ref: z.string().trim().min(1).max(8),
+    quote: z.string().trim().max(300).default(''),
+  })).max(8).default([]),
+  conflicts: z.array(z.object({
+    topic: z.string().trim().min(1).max(120),
+    refs: z.array(z.string().trim().min(1).max(8)).min(2).max(2),
+    note: z.string().max(300).default(''),
+  })).max(4).default([]),
+}).optional();
+
 export const modelOutputSchema = z.object({
   title: z.string().trim().min(1),
   type: z.enum(notificationTypes),
@@ -29,9 +46,39 @@ export const modelOutputSchema = z.object({
   requirements: z.string().default(''),
   contact: z.string().default(''),
   links: z.array(z.string().url()).default([]),
+  knowledge: modelKnowledgeSchema,
 });
 
 const isoDatetime = z.iso.datetime({ offset: true });
+
+export const knowledgeCitationSchema = z.object({
+  chunkId: z.string(),
+  entryId: z.string(),
+  scope: z.enum(knowledgeScopes),
+  title: z.string(),
+  version: z.number().int(),
+  locationLabel: z.string(),
+  quote: z.string(),
+});
+
+export const knowledgeConflictSchema = z.object({
+  topic: z.string(),
+  sides: z.array(z.object({
+    title: z.string(),
+    scope: z.enum(knowledgeScopes),
+    quote: z.string(),
+  })).length(2),
+  note: z.string(),
+});
+
+export const knowledgeAnalysisSchema = z.object({
+  used: z.boolean(),
+  summary: z.string(),
+  citations: z.array(knowledgeCitationSchema),
+  conflicts: z.array(knowledgeConflictSchema),
+  partial: z.boolean().default(false),
+  note: z.string().default(''),
+});
 
 export const parseResponseSchema = z.object({
   source: z.literal('real'),
@@ -43,6 +90,7 @@ export const parseResponseSchema = z.object({
   }),
   action: z.object({ title: z.string().nullable(), deadline: isoDatetime.nullable(), remindAt: isoDatetime.nullable() }),
   warnings: z.array(z.string()),
+  knowledge: knowledgeAnalysisSchema.optional(),
 });
 
 export type ParseRequest = z.infer<typeof parseRequestSchema>;
