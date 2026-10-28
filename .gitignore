@@ -14,6 +14,7 @@ build/
 .env.*
 !.env.example
 dist-standalone/
+dist-portable/
 test-results/
 playwright-report/
 

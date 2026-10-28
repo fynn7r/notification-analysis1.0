@@ -7,7 +7,7 @@
  */
 import { existsSync } from 'node:fs';
 import { copyFile } from 'node:fs/promises';
-import { spawnSync } from 'node:child_process';
+import { spawn, spawnSync } from 'node:child_process';
 import { randomBytes } from 'node:crypto';
 import { fileURLToPath } from 'node:url';
 import { resolve } from 'node:path';
@@ -35,9 +35,9 @@ process.emitWarning = (warning, ...rest) => {
 /** node:sqlite 需要较新的运行时；版本过低时报错信息往往难以理解，这里提前拦住。 */
 function ensureNodeVersion() {
   const [major, minor] = process.versions.node.split('.').map(Number);
-  const supported = major > 22 || (major === 22 && minor >= 13);
+  const supported = major > 22 || (major === 22 && minor >= 18);
   if (!supported) {
-    fail(`需要 Node.js 22.13 或更高版本（当前 ${process.versions.node}）。请到 https://nodejs.org 安装 LTS 版本后重试。`);
+    fail(`需要 Node.js 22.18 或更高版本（当前 ${process.versions.node}）。请到 https://nodejs.org 安装 LTS 版本后重试。`);
   }
 }
 
@@ -69,6 +69,18 @@ async function ensureAdmin(store) {
   const password = randomBytes(9).toString('base64url');
   await createFirstAdmin(store.db, { username: 'admin', displayName: '管理员', password });
   return { username: 'admin', password };
+}
+
+/** 用系统默认浏览器打开地址；失败不影响服务本身。 */
+function openBrowser(url) {
+  const command = process.platform === 'win32'
+    ? `start "" "${url}"`
+    : process.platform === 'darwin' ? `open "${url}"` : `xdg-open "${url}"`;
+  try {
+    spawn(command, { shell: true, stdio: 'ignore', detached: true }).unref();
+  } catch {
+    /* 打不开浏览器时，用户仍可按终端里打印的地址手动访问。 */
+  }
 }
 
 async function main() {
@@ -117,6 +129,10 @@ async function main() {
     log('  下一步：在页面「我的 → 模型接入」填写 API 密钥，否则无法真实解析。');
     log('  按 Ctrl+C 停止服务。');
     log('');
+
+    // 便携版的启动脚本会带上 OPEN_BROWSER=1，双击后不必自己复制地址；
+    // 命令行用户不设置该变量，避免占用浏览器抢焦点。
+    if (process.env.OPEN_BROWSER === '1') openBrowser(url);
   });
 
   const shutdown = () => {
