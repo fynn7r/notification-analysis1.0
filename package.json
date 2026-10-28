@@ -21,6 +21,7 @@
     "test:wechat-gate": "node --test server/wechat-gate.test.mjs",
     "verify:wechat": "node scripts/wechat-preflight.mjs",
     "test:browser": "playwright test",
+    "test:browser:prod": "playwright test",
     "verify:live": "node scripts/verify-live-parse.mjs",
     "verify:generate:live": "node scripts/verify-live-generate.mjs",
     "verify:interpret:live": "node scripts/verify-live-interpret.mjs",

@@ -68,13 +68,14 @@ AI_VISION_MODEL=qwen3-vl-plus
 | `npm run lint` | 类型检查 + ESLint |
 | `npm run build:standalone` | 只构建前端产物到 `dist-standalone/` |
 | `npm run admin:knowledge` | 账号管理（`list` 查看、`invite` 生成邀请码） |
-| `npm run test:browser` | Playwright 浏览器端到端测试 |
+| `npm run test:browser` | Playwright 浏览器端到端测试（跑开发服务器，改代码即时生效） |
+| `npm run test:browser:prod` | 同上，但跑构建产物（与 `npm start` 完全一致，上线前用它回归） |
 
 ## 数据存在哪
 
 | 内容 | 位置 | 备份建议 |
 |---|---|---|
-| 账号、知识库、邀请码 | `.local/knowledge/state.db` | 复制整个 `.local/` 目录 |
+| 账号、知识库、邀请码 | `.local/knowledge/knowledge.db` | 复制整个 `.local/` 目录 |
 | 模型密钥与端口配置 | `.env.local` | 含密钥，单独妥善保存 |
 | 待办、提醒、历史、个人设置 | 浏览器 localStorage | 换浏览器或清缓存会丢失 |
 
