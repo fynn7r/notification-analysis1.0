@@ -1,6 +1,6 @@
 #!/usr/bin/env node
 /**
- * 打包 Windows 便携版：解压后双击 `启动.bat` 即可使用，不需要安装 Node.js。
+ * 打包 Windows 便携版：解压后双击 `start.bat` 即可使用，不需要安装 Node.js。
  *
  * 面向的是「只想用、不想配环境」的人。npm install + npm start 对开发者是两步，
  * 但对普通用户仍要先装 Node，这一步最容易劝退，所以把运行时一起打包。
@@ -40,8 +40,22 @@ function ensureBuild() {
   run(process.execPath, [resolve(ROOT, 'node_modules/vite/bin/vite.js'), 'build', '--config', 'vite.standalone.config.ts']);
 }
 
+/**
+ * 清空输出目录。输出目录一定在项目内，不会碰到用户数据。
+ * 某些受限环境会拦截批量删除，此时给出可操作的提示而不是一堆 shim 报错。
+ */
+async function clearOutput() {
+  if (!resolve(OUT_DIR).startsWith(ROOT)) throw new Error('输出目录不在项目内，拒绝清理。');
+  if (!existsSync(OUT_DIR)) return;
+  try {
+    await rm(OUT_DIR, { recursive: true, force: true });
+  } catch {
+    throw new Error(`无法自动清理 ${OUT_DIR}，请手动删除该目录后重试。`);
+  }
+}
+
 async function stageFiles(pkg) {
-  await rm(OUT_DIR, { recursive: true, force: true });
+  await clearOutput();
   await mkdir(STAGE, { recursive: true });
 
   // 运行必需的代码与静态资源
@@ -87,14 +101,14 @@ async function writeLauncher() {
     ')',
     '',
   ].join('\r\n');
-  await writeFile(resolve(STAGE, '启动.bat'), bat, 'utf8');
+  await writeFile(resolve(STAGE, 'start.bat'), bat, 'utf8');
 
   const readme = [
     '通知智析 便携版',
     '',
     '使用方法',
     '  1. 把整个文件夹解压到任意位置（路径可以有中文，但不要直接在压缩包里运行）',
-    '  2. 双击「启动.bat」',
+    '  2. 双击 start.bat',
     '  3. 稍等几秒，浏览器会自动打开 http://127.0.0.1:8001',
     '',
     '首次启动会在窗口里显示管理员账号和密码，只显示一次，请立即记录。',
@@ -112,11 +126,11 @@ async function writeLauncher() {
     '',
     '常见问题',
     '  浏览器提示无法访问：窗口还没启动完，等几秒刷新一次。',
-    '  端口被占用：关掉占用 8001 的程序，再重新双击「启动.bat」。',
+    '  端口被占用：关掉占用 8001 的程序，再重新双击 start.bat。',
     '  换了电脑：整个文件夹复制过去即可，Node 运行时已包含在内，不用另外安装。',
     '',
   ].join('\r\n');
-  await writeFile(resolve(STAGE, '使用说明.txt'), `\uFEFF${readme}`, 'utf8');
+  await writeFile(resolve(STAGE, 'HOW-TO-START.txt'), `\uFEFF${readme}`, 'utf8');
 
   const notices = [
     '本程序打包分发了以下第三方组件，各自保留其原始许可证：',
@@ -130,39 +144,70 @@ async function writeLauncher() {
   await writeFile(resolve(STAGE, 'THIRD-PARTY-NOTICES.txt'), notices, 'utf8');
 }
 
+/**
+ * 打包目录里绝不能出现的东西：源码软链、本机数据、密钥。
+ * npm 在项目根用 --prefix 安装时，会把根项目以软链形式放进 node_modules/<根包名>，
+ * 指向源码目录，连带把 .local 数据库和 .env.local 一起打进包里 —— 这里必须拦住。
+ */
+function assertNoLeak() {
+  const suspects = [
+    resolve(STAGE, 'node_modules', 'notizhi'),
+    resolve(STAGE, 'node_modules', 'notizhi-portable', '.local'),
+    resolve(STAGE, '.local'),
+    resolve(STAGE, '.env.local'),
+  ];
+  const found = suspects.filter((item) => existsSync(item));
+  if (found.length) throw new Error(`打包目录里出现了不应包含的内容：${found.join('、')}`);
+}
+
 async function installDeps() {
   log('安装运行依赖（仅 3 个）…');
-  run('npm', ['install', '--omit=dev', '--no-audit', '--no-fund', '--prefix', STAGE], { shell: true });
+  // 工作目录必须是 STAGE：在项目根执行会把根项目本身链进 node_modules。
+  run('npm', ['install', '--omit=dev', '--no-audit', '--no-fund'], { shell: true, cwd: STAGE });
+  assertNoLeak();
 }
 
 async function zip() {
-  log('压缩中，约需 1-2 分钟…');
-  // Compress-Archive 不写 zip 的 UTF-8 文件名标记，中文文件名在资源管理器里解压会变乱码。
-  // 系统自带的 tar.exe（bsdtar）会正确标记，优先用它。
-  const tarBin = resolve(process.env.SystemRoot ?? 'C:\\Windows', 'System32', 'tar.exe');
-  if (existsSync(tarBin)) {
-    run(tarBin, ['-a', '-c', '-f', ZIP_PATH, '-C', OUT_DIR, BUNDLE_NAME]);
-  } else {
-    run('powershell', [
-      '-NoProfile', '-NonInteractive', '-Command',
-      `Compress-Archive -LiteralPath '${STAGE}' -DestinationPath '${ZIP_PATH}' -Force`,
-    ]);
-  }
+  log('压缩中（约 1-3 分钟）…');
+  await mkdir(resolve(ROOT, 'tmp'), { recursive: true });
+  await rm(ZIP_PATH, { force: true });
+
+  // 用 .NET 的 ZipFile：比 Compress-Archive 快得多，并且可以显式指定 UTF-8 文件名编码。
+  // 同时压缩包里一律用 ASCII 文件名：.NET 写的 zip 不带 UTF-8 标记，中文名解压必然是乱码。
+  // 也不用 tar.exe：它在 Windows 上写 zip 时行为异常，会读出正在写入的归档导致体积无限膨胀。
+  const script = [
+    'Add-Type -AssemblyName System.IO.Compression.FileSystem',
+    `$src = '${STAGE}'`,
+    `$dst = '${ZIP_PATH}'`,
+    'if (Test-Path $dst) { Remove-Item -LiteralPath $dst -Force }',
+    '$enc = New-Object System.Text.UTF8Encoding($false)',
+    '[System.IO.Compression.ZipFile]::CreateFromDirectory($src, $dst, [System.IO.Compression.CompressionLevel]::Optimal, $true, $enc)',
+  ].join('; ');
+  run('powershell', ['-NoProfile', '-NonInteractive', '-Command', script]);
+
   const { size } = await stat(ZIP_PATH);
   log(`完成：${ZIP_PATH}`);
   log(`体积：${(size / 1024 / 1024).toFixed(1)} MB`);
 }
 
-/** 打开压缩包确认中文文件名没有损坏，否则使用者解压后看到的是乱码。 */
+/**
+ * 回读压缩包确认关键文件都在、中文名没有坏。
+ * 用系统自带的 bsdtar 读取（能读 zip 且按 UTF-8 输出），不用 PowerShell：
+ * 后者在中文系统上会把条目名按 GBK 输出，出现「文件明明在却报缺失」的假失败。
+ */
 async function verifyZip() {
   const tarBin = resolve(process.env.SystemRoot ?? 'C:\\Windows', 'System32', 'tar.exe');
-  if (!existsSync(tarBin)) return;
-  const result = spawnSync(tarBin, ['-t', '-f', ZIP_PATH], { encoding: 'utf8' });
-  const entries = String(result.stdout ?? '').split('\n').filter(Boolean);
-  const required = ['启动.bat', '使用说明.txt', 'node.exe'];
-  const missing = required.filter((name) => !entries.some((entry) => entry.startsWith(`${BUNDLE_NAME}/${name}`)));
+  if (!existsSync(tarBin)) {
+    log('未找到系统 tar，跳过压缩包校验。');
+    return;
+  }
+  const result = spawnSync(tarBin, ['-tf', ZIP_PATH], { encoding: 'utf8', maxBuffer: 64 * 1024 * 1024 });
+  const names = String(result.stdout ?? '').split(/\r?\n/).filter(Boolean);
+  if (!names.length) throw new Error('压缩包读取失败，可能是写入过程被中断。');
+  const required = ['start.bat', 'HOW-TO-START.txt', 'node.exe', 'scripts/start.mjs'];
+  const missing = required.filter((name) => !names.includes(`${BUNDLE_NAME}/${name}`));
   if (missing.length) throw new Error(`压缩包内缺少或文件名损坏：${missing.join('、')}`);
-  log(`压缩包校验通过：${entries.length} 个条目，中文文件名完好。`);
+  log(`压缩包校验通过：${names.length} 个条目，关键文件齐全。`);
 }
 
 async function main() {
@@ -175,10 +220,11 @@ async function main() {
   await stageFiles(pkg);
   await writeLauncher();
   await installDeps();
+  assertNoLeak();
   await zip();
   await verifyZip();
   log('');
-  log('自检提示：解压到空目录后双击「启动.bat」，浏览器应自动打开并可直接登录。');
+  log('自检提示：解压到空目录后双击 start.bat，浏览器应自动打开并可直接登录。');
 }
 
 main().catch((error) => {

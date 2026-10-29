@@ -18,6 +18,14 @@
 
 ## 快速开始
 
+### 方式一：下载即用（Windows，不需要安装 Node）
+
+到 [Releases](https://github.com/fynn7r/notification-analysis1.0/releases) 下载 `notizhi-portable-win-x64.zip`，解压后双击「启动.bat」，浏览器会自动打开。压缩包里已经带好 Node 运行时，整台机器不用装任何东西，换电脑也是复制文件夹即可。
+
+首次启动会在窗口里打印管理员账号和密码，**只显示一次**。
+
+### 方式二：从源码运行
+
 需要 Node.js 22.18 或更高版本（含 24；服务端直接导入 .ts 契约文件，依赖 22.18 起默认开启的类型剥离）。
 
 ```bash
@@ -67,6 +75,7 @@ AI_VISION_MODEL=qwen3-vl-plus
 | `npm run typecheck` | TypeScript 类型检查 |
 | `npm run lint` | 类型检查 + ESLint |
 | `npm run build:standalone` | 只构建前端产物到 `dist-standalone/` |
+| `npm run build:portable` | 打包 Windows 便携版 zip 到 `dist-portable/`（内含 Node 运行时） |
 | `npm run admin:knowledge` | 账号管理（`list` 查看、`invite` 生成邀请码） |
 | `npm run test:browser` | Playwright 浏览器端到端测试（跑开发服务器，改代码即时生效） |
 | `npm run test:browser:prod` | 同上，但跑构建产物（与 `npm start` 完全一致，上线前用它回归） |
