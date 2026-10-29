@@ -8,8 +8,9 @@
  * 产物：dist-portable/notizhi-portable-win-x64.zip
  * 结构：node.exe + server/ + shared/ + scripts/ + dist-standalone/ + node_modules/（仅运行依赖）
  */
-import { cp, mkdir, writeFile, readFile, rm, stat } from 'node:fs/promises';
+import { copyFile, cp, mkdir, writeFile, readFile, rm, stat } from 'node:fs/promises';
 import { existsSync } from 'node:fs';
+import { tmpdir } from 'node:os';
 import { spawnSync } from 'node:child_process';
 import { fileURLToPath } from 'node:url';
 import { resolve } from 'node:path';
@@ -168,22 +169,22 @@ async function installDeps() {
 }
 
 async function zip() {
-  log('压缩中（约 1-3 分钟）…');
-  await mkdir(resolve(ROOT, 'tmp'), { recursive: true });
+  log('压缩中（约 1 分钟）…');
   await rm(ZIP_PATH, { force: true });
 
-  // 用 .NET 的 ZipFile：比 Compress-Archive 快得多，并且可以显式指定 UTF-8 文件名编码。
-  // 同时压缩包里一律用 ASCII 文件名：.NET 写的 zip 不带 UTF-8 标记，中文名解压必然是乱码。
-  // 也不用 tar.exe：它在 Windows 上写 zip 时行为异常，会读出正在写入的归档导致体积无限膨胀。
-  const script = [
-    'Add-Type -AssemblyName System.IO.Compression.FileSystem',
-    `$src = '${STAGE}'`,
-    `$dst = '${ZIP_PATH}'`,
-    'if (Test-Path $dst) { Remove-Item -LiteralPath $dst -Force }',
-    '$enc = New-Object System.Text.UTF8Encoding($false)',
-    '[System.IO.Compression.ZipFile]::CreateFromDirectory($src, $dst, [System.IO.Compression.CompressionLevel]::Optimal, $true, $enc)',
-  ].join('; ');
-  run('powershell', ['-NoProfile', '-NonInteractive', '-Command', script]);
+  // 用系统自带的 tar.exe（bsdtar），它比 Compress-Archive 快得多，也不必在运行时
+  // 编译 .NET 代码（部分受限环境会拦截 Add-Type）。
+  const tarBin = resolve(process.env.SystemRoot ?? 'C:\\Windows', 'System32', 'tar.exe');
+  if (!existsSync(tarBin)) throw new Error('未找到系统自带的 tar.exe（Windows 10 及以上自带），无法打包。');
+
+  // 归档必须写在被压缩目录之外。tar 的路径参数按模式匹配：若归档名为目录名的前缀
+  // （notizhi-portable-win-x64.zip 之于 notizhi-portable-win-x64），
+  // 它会把正在写入的 zip 自己也收进去，体积无限膨胀（实测 448MB → 6.9GB）。
+  const tempZip = resolve(tmpdir(), `${BUNDLE_NAME}.zip`);
+  await rm(tempZip, { force: true });
+  run(tarBin, ['-a', '-c', '-f', tempZip, '-C', OUT_DIR, BUNDLE_NAME]);
+  await copyFile(tempZip, ZIP_PATH);
+  await rm(tempZip, { force: true });
 
   const { size } = await stat(ZIP_PATH);
   log(`完成：${ZIP_PATH}`);
