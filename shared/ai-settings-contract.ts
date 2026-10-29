@@ -9,6 +9,13 @@ const url = singleLine.refine((value) => {
   } catch { return false; }
 }, '请填写完整的 HTTP 或 HTTPS 地址，不含密钥、查询参数或片段');
 
+// 单次输出的 token 上限。思考型模型（如 DeepSeek V4）的思考过程与正文共用这一额度，
+// 实测 1550 字通知做深度解读会消耗约 7300 token，故默认给足余量。
+export const maxTokensField = z.number().int('请填写整数')
+  .min(512, '输出上限至少 512 token，过小会导致正文被截断')
+  .max(65536, '输出上限最多 65536 token，超过模型能力会被服务商拒绝')
+  .default(16384);
+
 export const aiSettingsInputSchema = z.object({
   baseUrl: url.refine((value) => !/\/chat\/completions\/?$/.test(value), '填写基础地址，不要包含 /chat/completions'),
   apiKey: singleLine.default(''),
@@ -16,11 +23,11 @@ export const aiSettingsInputSchema = z.object({
   interpretationModel: model.default(''),
   generateModel: model.default(''),
   consoleUrl: z.union([z.literal(''), url]).default(''),
+  maxTokens: maxTokensField,
 });
 export const aiSettingsSchema = aiSettingsInputSchema.omit({ apiKey: true }).extend({
   configured: z.boolean(),
   balanceSupported: z.boolean(),
-  maxOutputTokens: z.number(),
 });
 export const aiModelsSchema = z.object({ models: z.array(z.string().min(1).max(2000)).max(1000) });
 const amount = z.string().regex(/^-?\d+(\.\d+)?$/);

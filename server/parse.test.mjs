@@ -2,12 +2,12 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import { createServer } from 'node:http';
 import { once } from 'node:events';
-import { ApiError, parseNotification } from './parse-service.mjs';
+import { ApiError, configuration, parseNotification } from './parse-service.mjs';
 import { createApiServer } from './index.mjs';
 import { signupRequest, signupModelOutput, competitionRequest } from './fixtures.mjs';
 import { relativeDate, toDateTimeInput, toZonedIso } from '../shared/date-time.ts';
 
-const config = { apiKey: 'test-key-never-use-in-production', baseUrl: 'https://test.invalid/v1', model: 'test-model', timeoutMs: 1000 };
+const config = { apiKey: 'test-key-never-use-in-production', baseUrl: 'https://test.invalid/v1', model: 'test-model', timeoutMs: 1000, maxTokens: 16384 };
 const completion = (value = signupModelOutput, finishReason = 'stop') => new Response(JSON.stringify({
   choices: [{ finish_reason: finishReason, message: { content: typeof value === 'string' ? value : JSON.stringify(value) } }],
 }));
@@ -102,7 +102,7 @@ test('官方 DeepSeek 关闭思考并保持 JSON 和额度，兼容接口不接�
       if (new URL(baseUrl).hostname === 'api.deepseek.com') assert.deepEqual(body.thinking, { type: 'disabled' });
       else assert.ok(!Object.hasOwn(body, 'thinking'));
       assert.deepEqual(body.response_format, { type: 'json_object' });
-      assert.equal(body.max_tokens, 2048);
+      assert.equal(body.max_tokens, 16384);
       return completion();
     });
   }
@@ -114,12 +114,45 @@ test('思考耗尽额度且正文为空时报告输出上限，不自动重试',
     calls++;
     return new Response(JSON.stringify({
       choices: [{ finish_reason: 'length', message: { content: '', reasoning_content: '测试占位思考内容' } }],
-      usage: { completion_tokens: 2048, completion_tokens_details: { reasoning_tokens: 2048 } },
+      usage: { completion_tokens: 8192, completion_tokens_details: { reasoning_tokens: 7900 } },
     }));
   }), errorCode('AI_OUTPUT_TRUNCATED', 502));
   assert.equal(calls, 1);
   // 即使被截断的正文碰巧是合法 JSON，也不能保存不完整结果。
   await assert.rejects(parseNotification(signupRequest, config, async () => completion(signupModelOutput, 'length')), errorCode('AI_OUTPUT_TRUNCATED', 502));
+});
+
+test('输出上限按服务商取默认值，可被 AI_MAX_TOKENS 覆盖，非法值回落到安全范围', () => {
+  // 官方 DeepSeek 单次输出上限是 8192，给更大值会被直接拒绝；
+  // 网关上的思考型模型思考更久，按 16384 起步。
+  assert.equal(configuration({}).maxTokens, 8192);
+  assert.equal(configuration({ AI_BASE_URL: 'https://maas.example.com/v1' }).maxTokens, 16384);
+  assert.equal(configuration({ AI_MAX_TOKENS: '32768' }).maxTokens, 32768);
+  assert.equal(configuration({ AI_MAX_TOKENS: '4096.7' }).maxTokens, 4096);
+  // 过小会被正文截断，过大则被服务商拒绝，两侧都收敛到可用区间。
+  assert.equal(configuration({ AI_MAX_TOKENS: '100' }).maxTokens, 512);
+  assert.equal(configuration({ AI_MAX_TOKENS: '999999' }).maxTokens, 65536);
+  assert.equal(configuration({ AI_MAX_TOKENS: 'abc' }).maxTokens, 8192);
+  assert.equal(configuration({ AI_MAX_TOKENS: '0' }).maxTokens, 8192);
+  // 长文解读实测约 80 秒，超时默认值必须与之匹配，否则提高上限只会变成超时。
+  assert.equal(configuration({}).timeoutMs, 120000);
+});
+
+test('截断提示说明思考占用与可调项，不再一律归咎于通知太长', async () => {
+  const truncate = (usage) => parseNotification(competitionRequest, config, async () => new Response(JSON.stringify({
+    choices: [{ finish_reason: 'length', message: { content: '' } }], ...(usage ? { usage } : {}),
+  }))).catch((error) => error);
+
+  const withReasoning = await truncate({ completion_tokens: 8192, completion_tokens_details: { reasoning_tokens: 7300 } });
+  assert.equal(withReasoning.code, 'AI_OUTPUT_TRUNCATED');
+  assert.match(withReasoning.message, /16384 token 上限/);
+  assert.match(withReasoning.message, /思考过程占用约 7300 token/);
+  assert.match(withReasoning.message, /模型接入.*调高输出上限/);
+
+  // 拿不到思考用量时退回到“内容较长”，不编造数字。
+  const withoutUsage = await truncate(null);
+  assert.match(withoutUsage.message, /16384 token 上限/);
+  assert.doesNotMatch(withoutUsage.message, /思考过程占用约/);
 });
 
 test('正常结束但内容为空，与输出上限和字段错误分别提示', async () => {

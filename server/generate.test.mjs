@@ -7,7 +7,7 @@ import { createApiServer } from './index.mjs';
 import { generationRequest } from './fixtures.mjs';
 import { generateStyles } from '../shared/generate-contract.ts';
 
-const config = { apiKey: 'test-key-never-use-in-production', baseUrl: 'https://api.deepseek.com', model: 'test-model', timeoutMs: 1000 };
+const config = { apiKey: 'test-key-never-use-in-production', baseUrl: 'https://api.deepseek.com', model: 'test-model', timeoutMs: 1000, maxTokens: 16384 };
 // 测试用模型响应，不作为真实生成验收结果。
 const content = Object.values(generationRequest).filter((value) => typeof value === 'string').join('\n');
 const completion = (value = { content }, finishReason = 'stop') => new Response(JSON.stringify({
@@ -26,7 +26,7 @@ test('生成模型请求包含全部字段与截止时间，四种风格和表�
         const body = JSON.parse(options.body);
         assert.deepEqual(body.thinking, { type: 'disabled' });
         assert.deepEqual(body.response_format, { type: 'json_object' });
-        assert.equal(body.max_tokens, 2048);
+        assert.equal(body.max_tokens, 16384);
         assert.deepEqual(JSON.parse(body.messages[1].content), input);
         assert.match(body.messages[0].content, /不得编造/);
         return completion();

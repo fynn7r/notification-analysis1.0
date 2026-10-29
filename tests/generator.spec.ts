@@ -55,7 +55,7 @@ test('生成通知传递截止与风格，等待时禁用重复操作，成功�
 
 for (const [code, message] of [
   ['AI_AUTH_FAILED', '模型密钥无效或已失效，请检查服务端配置。'],
-  ['AI_OUTPUT_TRUNCATED', '模型达到输出长度上限，未生成完整通知文案；填写内容已保留，请缩短通知后重试。'],
+  ['AI_OUTPUT_TRUNCATED', '模型输出达到 16384 token 上限被截断：本轮思考过程占用约 7900 token，与正文共用同一额度；填写内容已保留。可在“我的 → 模型接入”调高输出上限后重试。'],
 ]) {
   test(`${code} 不留空成功卡片，保留输入且不自动重试`, async ({ page }) => {
     let requests = 0;

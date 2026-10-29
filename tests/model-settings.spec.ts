@@ -3,7 +3,7 @@ import { test, expect } from '@playwright/test';
 const settings = {
   configured: true, baseUrl: 'https://api.deepseek.com', model: 'default-model',
   interpretationModel: '', generateModel: '', consoleUrl: 'https://platform.deepseek.com',
-  balanceSupported: true, maxOutputTokens: 2048,
+  balanceSupported: true, maxTokens: 16384,
 };
 
 test.beforeEach(async ({ page }) => {

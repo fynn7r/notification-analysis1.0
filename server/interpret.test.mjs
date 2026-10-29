@@ -1,10 +1,10 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { once } from 'node:events';
-import { interpretNotification } from './interpret-service.mjs';
+import { interpretNotification, anchorEvidence } from './interpret-service.mjs';
 import { createApiServer } from './index.mjs';
 
-const config = { apiKey: 'interpret-test-secret', baseUrl: 'https://api.deepseek.com', model: 'default-model', interpretationModel: 'interpret-model', timeoutMs: 1000 };
+const config = { apiKey: 'interpret-test-secret', baseUrl: 'https://api.deepseek.com', model: 'default-model', interpretationModel: 'interpret-model', timeoutMs: 1000, maxTokens: 16384 };
 const input = { text: '周三中午12点报名截止，不报名无法入场。', ruleContext: '【示例规则，仅供演示】报名不能保证加分。' };
 const output = {
   original_notification_summary: '需先报名才能入场。',
@@ -21,7 +21,7 @@ test('解读使用独立模型，原文与规则作为数据，保留原文依�
     const body = JSON.parse(options.body);
     assert.equal(body.model, config.interpretationModel);
     assert.deepEqual(body.thinking, { type: 'disabled' });
-    assert.equal(body.max_tokens, 2048);
+    assert.equal(body.max_tokens, 16384);
     assert.deepEqual(JSON.parse(body.messages[1].content), input);
     assert.match(body.messages[0].content, /推断，待确认/);
     return completion();
@@ -51,6 +51,30 @@ test('解读拒绝空正文、无效可信度、非原文依据和输出截断�
     await assert.rejects(interpretNotification(input, config, async () => { calls++; return completion(value, finish); }), (error) => error.code === code);
     assert.equal(calls, 1);
   }
+});
+
+test('原文依据拼接了不相邻的句子时，收敛到其中一段真实原文，不整条作废', () => {
+  const text = '一、提交方式\n1. 通过系统上传，不接受纸质材料。\n\n二、注意事项\n1. 提交后不可修改，请务必核对信息。';
+  const spliced = '提交后不可修改，请务必核对信息。通过系统上传，不接受纸质材料。';
+  // 拼接串整体不在原文，但拆开后每句都能逐字找到。
+  assert.ok(!text.includes(spliced));
+  assert.equal(anchorEvidence(spliced, text), '提交后不可修改，请务必核对信息。');
+  // 原样命中时不做任何改动。
+  assert.equal(anchorEvidence('不接受纸质材料', text), '不接受纸质材料');
+  // 完全编造、或只剩过短片段时仍判为无依据，不放行。
+  assert.equal(anchorEvidence('通知里根本没写过这句话。', text), null);
+  assert.equal(anchorEvidence('假的', text), null);
+});
+
+test('拼接依据的解读能正常返回，返回的 evidence 必须能在原文中找到', async () => {
+  const text = '一、提交方式\n1. 通过系统上传，不接受纸质材料。\n\n二、注意事项\n1. 提交后不可修改，请务必核对信息。';
+  const spliced = '提交后不可修改，请务必核对信息。通过系统上传，不接受纸质材料。';
+  const result = await interpretNotification({ text, ruleContext: '' }, config, async () => completion({
+    ...output,
+    interpretation_items: [{ ...output.interpretation_items[0], evidence: spliced }],
+  }));
+  assert.equal(result.interpretation_items[0].evidence, '提交后不可修改，请务必核对信息。');
+  assert.ok(text.includes(result.interpretation_items[0].evidence));
 });
 
 test('无效输入及无密钥不调用解读模型', async () => {

@@ -9,7 +9,7 @@ import { createEnvSettingsStore, publicAiSettings, listAiModels, getAiBalance } 
 import { createApiServer } from './index.mjs';
 import { generationRequest } from './fixtures.mjs';
 
-const config = { apiKey: 'settings-test-secret', baseUrl: 'https://api.deepseek.com/v1', model: 'default-model', timeoutMs: 1000 };
+const config = { apiKey: 'settings-test-secret', baseUrl: 'https://api.deepseek.com/v1', model: 'default-model', timeoutMs: 1000, maxTokens: 16384 };
 const input = { baseUrl: config.baseUrl, model: 'new-default', interpretationModel: 'new-interpret', generateModel: 'new-generate', consoleUrl: '', apiKey: '' };
 const balance = { is_available: true, balance_infos: [{ currency: 'CNY', total_balance: '12.34', granted_balance: '2.00', topped_up_balance: '10.34' }] };
 const json = (value) => new Response(JSON.stringify(value));
@@ -26,7 +26,7 @@ test('页面配置从不回传密钥，仅返回配置状态、模型和输出�
   const result = publicAiSettings(config);
   assert.equal(result.configured, true);
   assert.equal(result.balanceSupported, true);
-  assert.equal(result.maxOutputTokens, 2048);
+  assert.equal(result.maxTokens, 16384);
   assert.equal(result.consoleUrl, 'https://platform.deepseek.com');
   assert.ok(!JSON.stringify(result).includes(config.apiKey));
   assert.ok(!Object.hasOwn(result, 'apiKey'));

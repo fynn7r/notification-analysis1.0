@@ -19,7 +19,7 @@ export default function ModelSettings() {
   const acceptSettings = (value: AiSettings) => {
     setSettings(value);
     setForm({ baseUrl: value.baseUrl, model: value.model, interpretationModel: value.interpretationModel,
-      generateModel: value.generateModel, consoleUrl: value.consoleUrl, apiKey: '' });
+      generateModel: value.generateModel, consoleUrl: value.consoleUrl, apiKey: '', maxTokens: value.maxTokens });
   };
   useEffect(() => {
     let active = true;
@@ -29,7 +29,7 @@ export default function ModelSettings() {
     return () => { active = false; };
   }, []);
 
-  const dirty = !!form && !!settings && (form.apiKey !== '' ||
+  const dirty = !!form && !!settings && (form.apiKey !== '' || form.maxTokens !== settings.maxTokens ||
     (['baseUrl', 'model', 'interpretationModel', 'generateModel', 'consoleUrl'] as const).some((key) => form[key] !== settings[key]));
 
   const operate = async (action: 'load' | 'save' | 'models' | 'balance') => {
@@ -89,6 +89,15 @@ export default function ModelSettings() {
               </div>)}
               <datalist id="ai-model-list">{models?.map((model) => <option key={model} value={model} />)}</datalist>
               <div>
+                <Label htmlFor="ai-max-tokens">单次输出上限（token）</Label>
+                <Input id="ai-max-tokens" type="number" min={512} max={65536} step={512} value={form.maxTokens || ''}
+                  onChange={(event) => {
+                    const next = Number(event.target.value);
+                    setForm({ ...form, maxTokens: Number.isFinite(next) ? Math.trunc(next) : 0 });
+                  }} placeholder="8192" />
+                <p className="mt-1 text-xs text-muted-foreground">思考型模型的思考过程与正文共用这一额度，出现“输出达到上限被截断”时调高它，默认 8192。上限受模型能力限制，填得过高会被服务商拒绝。</p>
+              </div>
+              <div>
                 <Label htmlFor="ai-console-url">服务商控制台地址（可选）</Label>
                 <Input id="ai-console-url" value={form.consoleUrl} onChange={(event) => setForm({ ...form, consoleUrl: event.target.value })} placeholder="用于查看账单、额度和管理密钥" />
               </div>
@@ -109,7 +118,7 @@ export default function ModelSettings() {
               {balance.balances.map((item) => <p key={item.currency}>可用余额：{item.total} {item.currency}（赠金 {item.granted}，充值 {item.toppedUp}）</p>)}
               <p className="text-xs text-muted-foreground">查询时间：{new Date(balance.checkedAt).toLocaleString('zh-CN')}，再次查询可刷新。</p>
             </div>}
-            <p className="text-xs text-muted-foreground">{settings.balanceSupported ? 'DeepSeek 余额由官方接口返回。' : '该服务商暂未接入余额查询，请填写控制台地址并前往查看。'}单次输出上限为 {settings.maxOutputTokens} token，与账户剩余额度不同。</p>
+            <p className="text-xs text-muted-foreground">{settings.balanceSupported ? 'DeepSeek 余额由官方接口返回。' : '该服务商暂未接入余额查询，请填写控制台地址并前往查看。'}单次输出上限为 {settings.maxTokens} token，与账户剩余额度不同。</p>
           </div>
           <details className="text-sm">
             <summary className="cursor-pointer font-medium">接入与更换步骤</summary>

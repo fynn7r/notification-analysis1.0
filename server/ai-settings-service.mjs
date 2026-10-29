@@ -11,7 +11,7 @@ export function publicAiSettings(config) {
     baseUrl: config.baseUrl, model: config.model,
     interpretationModel: config.interpretationModel || '', generateModel: config.generateModel || '',
     consoleUrl: config.consoleUrl || (official ? 'https://platform.deepseek.com' : ''),
-    configured: !!config.apiKey.trim(), balanceSupported: official, maxOutputTokens: 2048,
+    configured: !!config.apiKey.trim(), balanceSupported: official, maxTokens: config.maxTokens,
   });
 }
 
@@ -38,7 +38,7 @@ export function createEnvSettingsStore(path, env = process.env) {
       const values = {
         AI_BASE_URL: data.baseUrl.replace(/\/+$/, ''), AI_MODEL: data.model,
         AI_INTERPRET_MODEL: data.interpretationModel, AI_GENERATE_MODEL: data.generateModel,
-        AI_CONSOLE_URL: data.consoleUrl,
+        AI_CONSOLE_URL: data.consoleUrl, AI_MAX_TOKENS: String(data.maxTokens),
         ...(data.apiKey ? { AI_API_KEY: data.apiKey } : {}),
       };
       let content = read();

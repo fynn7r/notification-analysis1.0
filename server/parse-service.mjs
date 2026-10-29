@@ -10,14 +10,25 @@ export class ApiError extends Error {
 }
 
 export function configuration(env = process.env) {
+  const baseUrl = (env.AI_BASE_URL || 'https://api.deepseek.com').replace(/\/+$/, '');
+  // 思考型模型的思考过程与正文共用输出额度，额度太小会在正文写一半时被截断。
+  // 实测 1550 字通知做深度解读会消耗约 7300 token，思考占其中大头。
+  // 但官方 DeepSeek 单次输出上限就是 8192，给更大值会被直接拒绝，故按服务商取默认值。
+  const official = (() => { try { return new URL(baseUrl).hostname === 'api.deepseek.com'; } catch { return false; } })();
+  const explicit = Math.trunc(Number(env.AI_MAX_TOKENS)) || 0;
+  const maxTokens = explicit
+    ? Math.min(65536, Math.max(512, explicit))
+    : (official ? 8192 : 16384);
   return {
     apiKey: env.AI_API_KEY || env.DEEPSEEK_API_KEY || '',
-    baseUrl: (env.AI_BASE_URL || 'https://api.deepseek.com').replace(/\/+$/, ''),
+    baseUrl,
     model: env.AI_MODEL || 'deepseek-flash',
     interpretationModel: env.AI_INTERPRET_MODEL || '',
     generateModel: env.AI_GENERATE_MODEL || '',
     consoleUrl: env.AI_CONSOLE_URL || '',
-    timeoutMs: Number(env.AI_TIMEOUT_MS) || 30000,
+    // 输出越长必然越慢：长通知解读实测约 80 秒，30 秒的旧默认值会直接超时。
+    timeoutMs: Number(env.AI_TIMEOUT_MS) || 120000,
+    maxTokens,
   };
 }
 
@@ -184,7 +195,7 @@ export async function requestModelJson(prompt, text, config, fetchImpl = fetch, 
         // 官方 DeepSeek 默认开启思考；直接生成 JSON，避免思考耗尽输出额度。
         ...(new URL(config.baseUrl).hostname === 'api.deepseek.com' ? { thinking: { type: 'disabled' } } : {}),
         messages: [{ role: 'system', content: prompt }, { role: 'user', content: text }],
-        max_tokens: 2048, temperature: 0,
+        max_tokens: config.maxTokens, temperature: 0,
       }),
       signal: AbortSignal.timeout(config.timeoutMs),
     });
@@ -210,7 +221,14 @@ export async function requestModelJson(prompt, text, config, fetchImpl = fetch, 
 
   const choice = payload?.choices?.[0];
   if (choice?.finish_reason === 'length') {
-    throw new ApiError(502, 'AI_OUTPUT_TRUNCATED', `模型达到输出长度上限，未生成完整${resultLabel}；${inputLabel}已保留，请缩短通知后重试。`);
+    // 思考型模型的思考 token 计入 completion_tokens，正文与思考抢同一份额度，
+    // 所以“被截断”往往不是通知太长，而是思考吃掉了大部分额度。把占用情况说清楚，
+    // 用户才知道该调上限还是该删内容。
+    const reasoning = Number(payload?.usage?.completion_tokens_details?.reasoning_tokens);
+    const cause = Number.isFinite(reasoning) && reasoning > 0
+      ? `本轮思考过程占用约 ${reasoning} token，与正文共用同一额度`
+      : `原文或填写内容较长`;
+    throw new ApiError(502, 'AI_OUTPUT_TRUNCATED', `模型输出达到 ${config.maxTokens} token 上限被截断：${cause}；${inputLabel}已保留。可在“我的 → 模型接入”调高输出上限后重试。`);
   }
   if (choice?.finish_reason !== 'stop') {
     throw new ApiError(502, 'INVALID_MODEL_OUTPUT', `模型返回内容不完整或格式无效，请重试；未保存${resultLabel}。`);

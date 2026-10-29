@@ -59,7 +59,10 @@ export default function ImpliedMeaningSection({
                 话里有话 · 深度解读
               </div>
               <p className="mt-0.5 text-xs text-muted-foreground">
-                {unavailableReason || '点击 AI 解读，挖掘通知背后的潜台词与隐藏信息'}
+                {unavailableReason
+                  || (isLoading
+                    ? '正在解读，思考型模型通常需要 30–90 秒，请勿关闭页面'
+                    : '点击 AI 解读，挖掘通知背后的潜台词与隐藏信息')}
               </p>
             </div>
           </div>

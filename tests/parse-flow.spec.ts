@@ -119,7 +119,7 @@ test('浏览器存储失败时保留确认表单，不误报待办已保存', as
 });
 
 for (const [code, message] of [
-  ['AI_OUTPUT_TRUNCATED', '模型达到输出长度上限，未生成完整解析结果；原文已保留，请缩短通知后重试。'],
+  ['AI_OUTPUT_TRUNCATED', '模型输出达到 16384 token 上限被截断：本轮思考过程占用约 7900 token，与正文共用同一额度；原文已保留。可在“我的 → 模型接入”调高输出上限后重试。'],
   ['AI_EMPTY_OUTPUT', '模型没有返回解析内容，原文已保留，请重试。'],
   ['INVALID_MODEL_OUTPUT', '模型返回的 JSON 或字段格式无效，请重试；未保存解析结果。'],
 ]) {
