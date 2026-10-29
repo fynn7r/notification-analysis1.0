@@ -43,6 +43,17 @@ test('解析接口契约：报名截止、活动开始和提前30分钟提醒保
   assert.deepEqual(result.warnings, []);
 });
 
+test('日期写成「11 月 7 日」这类中英混排时，空白不影响时间解析', async () => {
+  // 微信、Word 排版常把数字与汉字之间加空格；这类证据曾被误判为「日期不完整」并丢弃截止时间。
+  const text = '本周四晚20:00开展线下分享会，报名截止：本周三中午12点。系统填报：11 月 3 日 9:00 至 11 月 7 日 17:00。';
+  const spaced = { ...signupModelOutput, deadline: { date: '2026-11-07', time: '17:00', evidence: '11 月 7 日 17:00' } };
+  const result = await parseNotification({ ...signupRequest, text }, config, async () => completion(spaced));
+  assert.equal(result.action.deadline, '2026-11-07T17:00:00+08:00');
+  assert.equal(toDateTimeInput(result.action.remindAt), '2026-11-07T16:30');
+  assert.deepEqual(result.warnings, []);
+  assert.equal(relativeDate('本周 四', '2026-10-05'), '2026-10-08');
+});
+
 test('星期换算以参考日期的周一为基准，不信任模型错误的日期', async () => {
   const wrongDates = { ...signupModelOutput, deadline: { ...signupModelOutput.deadline, date: '2026-10-14' } };
   const result = await parseNotification({ ...signupRequest, referenceDate: '2026-10-11' }, config, async () => completion(wrongDates));

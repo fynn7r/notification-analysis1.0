@@ -1,4 +1,5 @@
 import { interpretRequestSchema, interpretResponseSchema } from '@shared/interpret-contract';
+import { AI_REQUEST_TIMEOUT_MS } from '@/lib/request-timeout';
 
 export async function interpretWithApi(text: string, ruleContext: string) {
   const checked = interpretRequestSchema.safeParse({ text, ruleContext });
@@ -7,7 +8,7 @@ export async function interpretWithApi(text: string, ruleContext: string) {
   try {
     response = await fetch('/api/interpret', {
       method: 'POST', headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify(checked.data), signal: AbortSignal.timeout(45000),
+      body: JSON.stringify(checked.data), signal: AbortSignal.timeout(AI_REQUEST_TIMEOUT_MS),
     });
   } catch { throw new Error('深度解读服务未连接或请求超时，请确认本地服务正在运行；原文和已有结果已保留。'); }
   let payload: unknown;

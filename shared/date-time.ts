@@ -49,7 +49,8 @@ export function toZonedIso(value: string, timezone = DEFAULT_TIMEZONE): string |
 
 export function relativeDate(evidence: string, referenceDate: string): string | null {
   const date = new Date(`${referenceDate}T00:00:00Z`);
-  const week = evidence.match(/(本周|这周|下周|上周)([一二三四五六日天])/);
+  // 「本周 四」这类带空白的中英混排写法同样要认出来。
+  const week = evidence.match(/(本周|这周|下周|上周)\s*([一二三四五六日天])/);
   if (week) {
     const weekday = '一二三四五六日'.indexOf(week[2] === '天' ? '日' : week[2]);
     const shift = week[1] === '下周' ? 7 : week[1] === '上周' ? -7 : 0;

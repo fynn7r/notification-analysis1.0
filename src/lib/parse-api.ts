@@ -2,6 +2,7 @@ import { parseResponseSchema } from '@shared/parse-contract';
 import type { INotification } from '@/data/notification';
 import { genId } from '@/lib/utils';
 import { extractMediaLinks } from '@/lib/recurring-utils';
+import { AI_REQUEST_TIMEOUT_MS } from '@/lib/request-timeout';
 
 export const IS_STANDALONE = import.meta.env.VITE_STANDALONE === true || import.meta.env.VITE_STANDALONE === 'true';
 
@@ -10,7 +11,7 @@ export async function parseWithApi(text: string, referenceDate: string, timezone
   try {
     response = await fetch('/api/parse', {
       method: 'POST', headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ text, referenceDate, timezone }), signal: AbortSignal.timeout(45000),
+      body: JSON.stringify({ text, referenceDate, timezone }), signal: AbortSignal.timeout(AI_REQUEST_TIMEOUT_MS),
     });
   } catch {
     throw new Error('解析服务未连接或请求超时，原文已保留，请确认本地服务正在运行。');

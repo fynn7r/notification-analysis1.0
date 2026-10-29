@@ -1,6 +1,6 @@
 {
   "name": "notizhi",
-  "version": "0.1.1",
+  "version": "0.1.2",
   "description": "通知智析：把群通知与公众号文章解析成结构化待办，支持双知识库与配图文字识别",
   "license": "MIT",
   "private": true,

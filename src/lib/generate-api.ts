@@ -1,4 +1,5 @@
 import { generateRequestSchema, generateResponseSchema, type GenerateRequest } from '@shared/generate-contract';
+import { AI_REQUEST_TIMEOUT_MS } from '@/lib/request-timeout';
 
 export async function generateWithApi(input: GenerateRequest): Promise<string> {
   const checked = generateRequestSchema.safeParse(input);
@@ -7,7 +8,7 @@ export async function generateWithApi(input: GenerateRequest): Promise<string> {
   try {
     response = await fetch('/api/generate', {
       method: 'POST', headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify(checked.data), signal: AbortSignal.timeout(45000),
+      body: JSON.stringify(checked.data), signal: AbortSignal.timeout(AI_REQUEST_TIMEOUT_MS),
     });
   } catch {
     throw new Error('通知生成服务未连接或请求超时，填写内容已保留，请确认本地服务正在运行。');

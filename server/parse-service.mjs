@@ -43,8 +43,9 @@ function resolveTime(field, text, context, label, warnings) {
   // 明确的相对日期由代码计算，避免模型跨周或跨月算错。
   const date = relativeDate(field.evidence, context.referenceDate) || field.date;
   const vague = /尽快|待定|月底|周末|另行通知|近期/.test(field.evidence);
-  const explicitTime = /\d{1,2}[:：]\d{2}|[零一二三四五六七八九十两\d]+[点时]/.test(field.evidence);
-  const explicitDate = relativeDate(field.evidence, context.referenceDate) || /\d{4}[-/.]\d{1,2}[-/.]\d{1,2}|\d{1,2}月\d{1,2}[日号]|\d{1,2}[/-]\d{1,2}/.test(field.evidence);
+  // 中英混排会把「11月7日」写成「11 月 7 日」，数字与汉字之间的空白不能影响判定。
+  const explicitTime = /\d{1,2}\s*[:：]\s*\d{2}|[零一二三四五六七八九十两\d]+\s*[点时]/.test(field.evidence);
+  const explicitDate = relativeDate(field.evidence, context.referenceDate) || /\d{4}\s*[-/.]\s*\d{1,2}\s*[-/.]\s*\d{1,2}|\d{1,2}\s*月\s*\d{1,2}\s*[日号]|\d{1,2}\s*[/-]\s*\d{1,2}/.test(field.evidence);
   if (!date || !field.time || !explicitTime || !explicitDate || vague) {
     warnings.push(`${label}原文「${field.evidence}」缺少明确完整的日期或时间，请手动补齐。`);
     return null;
