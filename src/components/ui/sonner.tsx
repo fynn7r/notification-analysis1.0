@@ -10,15 +10,16 @@ import {
   Loader2Icon,
   XIcon,
 } from 'lucide-react';
-import { useTheme } from 'next-themes';
 import { Toaster as Sonner, type ToasterProps } from 'sonner';
 
-function Toaster({ className, style, icons, ...props }: ToasterProps) {
-  const { theme = 'system' } = useTheme();
+// 应用只有浅色主题，这里锁死 light；原先从 next-themes 读 theme，
+// 而那个依赖除了这一行之外全仓库没有任何使用点。
+const THEME: ToasterProps['theme'] = 'light';
 
+function Toaster({ className, style, icons, ...props }: ToasterProps) {
   return (
     <Sonner
-      theme={theme as ToasterProps['theme']}
+      theme={THEME}
       className={cn('toaster group', className)}
       position="top-center"
       icons={{
