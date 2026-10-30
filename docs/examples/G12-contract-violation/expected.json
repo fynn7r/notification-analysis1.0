@@ -1,0 +1,28 @@
+{
+  "id": "G12",
+  "title": "模型返回枚举外的类型",
+  "referenceDate": "2026-10-30",
+  "timezone": "Asia/Shanghai",
+  "modelOutput": {
+    "title": "教研活动时间调整",
+    "type": "通知",
+    "actionTitle": "参加教研活动",
+    "deadline": null,
+    "eventTime": {
+      "date": "2026-11-01",
+      "time": "15:00",
+      "evidence": "11 月 1 日 15:00"
+    },
+    "location": "",
+    "targetAudience": "",
+    "requirements": "",
+    "contact": "",
+    "links": []
+  },
+  "assert": {
+    "error": {
+      "status": 502,
+      "code": "INVALID_MODEL_OUTPUT"
+    }
+  }
+}

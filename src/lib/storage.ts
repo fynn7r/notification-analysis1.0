@@ -28,6 +28,7 @@ const STORAGE_KEYS = {
   notificationMedia: '__app_notizhi_notification_media',
   draft: '__app_notizhi_draft',
   parseSession: '__app_notizhi_parse_session',
+  preferences: '__app_notizhi_preferences',
 } as const;
 
 // 旧 key 列表，用于迁移
@@ -153,4 +154,8 @@ export const storage = {
   // 当前解析会话（路由切换/刷新后恢复）
   getParseSession: <T>(fallback: T) => safeGet<T>(STORAGE_KEYS.parseSession, fallback),
   setParseSession: <T>(value: T) => safeSet(STORAGE_KEYS.parseSession, value),
+
+  // 本地偏好（默认提醒提前量等）
+  getPreferences: <T>(fallback: T) => safeGet<T>(STORAGE_KEYS.preferences, fallback),
+  setPreferences: <T>(value: T) => safeSet(STORAGE_KEYS.preferences, value),
 };

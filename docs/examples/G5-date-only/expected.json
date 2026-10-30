@@ -1,0 +1,28 @@
+{
+  "id": "G5",
+  "title": "只有日期没有钟点",
+  "referenceDate": "2026-10-30",
+  "timezone": "Asia/Shanghai",
+  "modelOutput": {
+    "title": "纸质材料提交",
+    "type": "作业任务",
+    "actionTitle": "提交纸质材料",
+    "deadline": {
+      "date": "2026-11-10",
+      "time": "23:59",
+      "evidence": "11 月 10 日"
+    },
+    "eventTime": null,
+    "location": "学院办公室",
+    "targetAudience": "",
+    "requirements": "装入档案袋",
+    "contact": "",
+    "links": []
+  },
+  "assert": {
+    "deadline": null,
+    "warningsContain": [
+      "缺少明确完整的日期或时间"
+    ]
+  }
+}

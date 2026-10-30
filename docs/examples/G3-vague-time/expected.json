@@ -1,0 +1,28 @@
+{
+  "id": "G3",
+  "title": "含糊时间词「月底前」",
+  "referenceDate": "2026-10-30",
+  "timezone": "Asia/Shanghai",
+  "modelOutput": {
+    "title": "本学期综合素质测评材料申报",
+    "type": "作业任务",
+    "actionTitle": "提交综测加分材料",
+    "deadline": {
+      "date": "2026-10-31",
+      "time": "17:00",
+      "evidence": "月底前"
+    },
+    "eventTime": null,
+    "location": "辅导员处",
+    "targetAudience": "各班同学",
+    "requirements": "加分材料",
+    "contact": "王老师",
+    "links": []
+  },
+  "assert": {
+    "deadline": null,
+    "warningsContain": [
+      "缺少明确完整的日期或时间"
+    ]
+  }
+}

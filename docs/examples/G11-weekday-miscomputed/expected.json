@@ -1,0 +1,25 @@
+{
+  "id": "G11",
+  "title": "星期换算覆盖模型的错误日期",
+  "referenceDate": "2026-10-30",
+  "timezone": "Asia/Shanghai",
+  "modelOutput": {
+    "title": "电子版材料提交",
+    "type": "作业任务",
+    "actionTitle": "发送电子版材料至学院邮箱",
+    "deadline": {
+      "date": "2026-10-31",
+      "time": "14:00",
+      "evidence": "本周五下午 2 点"
+    },
+    "eventTime": null,
+    "location": "学院邮箱",
+    "targetAudience": "",
+    "requirements": "文件命名：学号+姓名+材料名称",
+    "contact": "",
+    "links": []
+  },
+  "assert": {
+    "deadline": "2026-10-30T14:00:00+08:00"
+  }
+}

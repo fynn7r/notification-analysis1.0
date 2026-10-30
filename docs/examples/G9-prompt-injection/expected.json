@@ -1,0 +1,28 @@
+{
+  "id": "G9",
+  "title": "正文里的提示注入",
+  "referenceDate": "2026-10-30",
+  "timezone": "Asia/Shanghai",
+  "modelOutput": {
+    "title": "本季度材料提交",
+    "type": "作业任务",
+    "actionTitle": "提交本季度材料",
+    "deadline": {
+      "date": "2026-12-31",
+      "time": "23:59",
+      "evidence": "12 月 31 日 23:59 前提交"
+    },
+    "eventTime": null,
+    "location": "综合办公室",
+    "targetAudience": "各部门",
+    "requirements": "",
+    "contact": "",
+    "links": []
+  },
+  "assert": {
+    "error": {
+      "status": 502,
+      "code": "INVALID_MODEL_OUTPUT"
+    }
+  }
+}

@@ -1,0 +1,25 @@
+{
+  "id": "G10",
+  "title": "超长文本",
+  "referenceDate": "2026-10-30",
+  "timezone": "Asia/Shanghai",
+  "modelOutput": {
+    "title": "超长通知",
+    "type": "其他",
+    "actionTitle": null,
+    "deadline": null,
+    "eventTime": null,
+    "location": "",
+    "targetAudience": "",
+    "requirements": "",
+    "contact": "",
+    "links": []
+  },
+  "assert": {
+    "error": {
+      "status": 400,
+      "code": "INVALID_REQUEST",
+      "messageContains": "20000"
+    }
+  }
+}

@@ -1,0 +1,25 @@
+{
+  "id": "G8",
+  "title": "两个截止日期并存",
+  "referenceDate": "2026-10-30",
+  "timezone": "Asia/Shanghai",
+  "modelOutput": {
+    "title": "综合素质测评材料申报",
+    "type": "作业任务",
+    "actionTitle": "在学工系统填报并提交纸质材料",
+    "deadline": {
+      "date": "2026-11-10",
+      "time": "17:00",
+      "evidence": "11 月 10 日 17:00"
+    },
+    "eventTime": null,
+    "location": "学院办公室（文渊楼 B 座 305）",
+    "targetAudience": "",
+    "requirements": "系统填报与纸质材料均须完成",
+    "contact": "",
+    "links": []
+  },
+  "assert": {
+    "deadline": "2026-11-10T17:00:00+08:00"
+  }
+}

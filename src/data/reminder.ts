@@ -53,7 +53,18 @@ export interface IReminder {
   deadline: string;
   remindAt: string;
   timezone?: string;
+  /**
+   * 提前量的中文描述，如「截止前2天」「准时」「截止前30分钟」。
+   * 注意：这个字段目前同时被当作去重键使用（ParsePage 保存前会比对它），
+   * 因此不能改变它的取值方式；数值化的提前量请用 remindLeadMinutes。
+   */
   remindOffset: string;
+  /**
+   * 提前量的数值形式（分钟），0 表示准时提醒。
+   * 闹钟调度、日历导出、导入其他设备时都读这个字段，不再各自从 remindOffset 里反推。
+   * 旧数据没有这个字段，读取时用 deriveLeadMinutes() 从 deadline 与 remindAt 现算。
+   */
+  remindLeadMinutes?: number;
   completed: boolean;
   source: ReminderSource;
   recurringType?: RecurringType;

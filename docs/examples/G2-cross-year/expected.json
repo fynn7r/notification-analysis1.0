@@ -1,0 +1,26 @@
+{
+  "id": "G2",
+  "title": "相对日期跨年",
+  "referenceDate": "2026-12-30",
+  "timezone": "Asia/Shanghai",
+  "modelOutput": {
+    "title": "年末材料归档",
+    "type": "作业任务",
+    "actionTitle": "提交本年度纸质材料",
+    "deadline": {
+      "date": "2027-01-05",
+      "time": "17:00",
+      "evidence": "下周三 17:00"
+    },
+    "eventTime": null,
+    "location": "学院办公室（文渊楼 B 座 305）",
+    "targetAudience": "各教研室",
+    "requirements": "纸质材料",
+    "contact": "",
+    "links": []
+  },
+  "assert": {
+    "deadline": "2027-01-06T17:00:00+08:00",
+    "warningsContain": []
+  }
+}

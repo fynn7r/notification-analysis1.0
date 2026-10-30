@@ -1,0 +1,31 @@
+{
+  "id": "G1",
+  "title": "只有活动时间，没有报名截止",
+  "referenceDate": "2026-10-30",
+  "timezone": "Asia/Shanghai",
+  "modelOutput": {
+    "title": "人工智能与教育专题讲座",
+    "type": "讲座分享",
+    "actionTitle": null,
+    "deadline": null,
+    "eventTime": {
+      "date": "2026-10-31",
+      "time": "19:00",
+      "evidence": "10月31日 19:00"
+    },
+    "location": "图书馆报告厅",
+    "targetAudience": "全校师生",
+    "requirements": "",
+    "contact": "",
+    "links": []
+  },
+  "assert": {
+    "deadline": null,
+    "eventStartTime": "2026-10-31T19:00:00+08:00",
+    "actionTitle": null,
+    "warningsContain": [
+      "原文未明确待办截止时间",
+      "原文未明确需要完成的动作"
+    ]
+  }
+}

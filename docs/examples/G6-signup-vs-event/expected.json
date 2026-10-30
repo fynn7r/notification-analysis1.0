@@ -1,0 +1,30 @@
+{
+  "id": "G6",
+  "title": "报名截止与活动开始分开",
+  "referenceDate": "2026-10-30",
+  "timezone": "Asia/Shanghai",
+  "modelOutput": {
+    "title": "2026 年全国大学生数学建模竞赛报名",
+    "type": "比赛竞赛",
+    "actionTitle": "在竞赛管理系统完成队伍注册",
+    "deadline": {
+      "date": "2026-11-03",
+      "time": "18:00",
+      "evidence": "报名截止 11 月 3 日 18:00"
+    },
+    "eventTime": {
+      "date": "2026-11-08",
+      "time": "09:00",
+      "evidence": "11 月 8 日 9:00 正式开始"
+    },
+    "location": "竞赛管理系统",
+    "targetAudience": "",
+    "requirements": "完成队伍注册",
+    "contact": "",
+    "links": []
+  },
+  "assert": {
+    "deadline": "2026-11-03T18:00:00+08:00",
+    "eventStartTime": "2026-11-08T09:00:00+08:00"
+  }
+}

@@ -1,7 +1,7 @@
 import { useState, useMemo, useCallback } from 'react';
 import { toast } from 'sonner';
 import { motion, AnimatePresence } from 'framer-motion';
-import { Bell, Plus, Check, Trash2, Clock, CalendarDays, User, AlertTriangle, Info, Loader2, Mic, Sparkles, RefreshCcw } from 'lucide-react';
+import { Bell, Plus, Check, Trash2, Clock, CalendarDays, CalendarPlus, User, AlertTriangle, Info, Loader2, Mic, Sparkles, RefreshCcw } from 'lucide-react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import {
   Tabs,
@@ -44,6 +44,7 @@ import { useReminders } from '@/hooks/useReminders';
 import ImportanceBadge from '@/components/common/ImportanceBadge';
 import VoiceReminderCreator from '@/components/reminder/VoiceReminderCreator';
 import { formatCountdown, getUrgency, formatDateTime, formatLocalDateTime, getSafeTime, parseSmartDate } from '@/lib/date-utils';
+import { describeSkipped, downloadRemindersIcs } from '@/lib/export-ics';
 import type { ImportanceLevel } from '@/data/reminder';
 import { cn } from '@/lib/utils';
 
@@ -94,6 +95,33 @@ export default function RemindersPage() {
     toast.success('已删除提醒');
   }, [deleteReminder]);
 
+  /** 导出 .ics：浏览器本地生成，不需要联网，也不需要账号。 */
+  const handleExportIcs = useCallback(() => {
+    const pending = reminders.filter((r) => !r.completed);
+    if (!pending.length) {
+      toast.info('没有可导出的待办');
+      return;
+    }
+    try {
+      const { included, skipped } = downloadRemindersIcs(reminders);
+      if (included === 0) {
+        toast.error('这些待办都没有日期，暂时无法导出到日历');
+        return;
+      }
+      const missing = describeSkipped(reminders);
+      if (skipped > 0) {
+        toast.warning(`已导出 ${included} 条；${skipped} 条因没有截止或提醒时间被跳过`, {
+          description: missing.slice(0, 3).join('、') + (missing.length > 3 ? ` 等 ${missing.length} 条` : ''),
+        });
+      } else {
+        toast.success(`已导出 ${included} 条待办，双击文件即可导入系统日历`);
+      }
+    } catch (error) {
+      console.error('[export] 生成 ics 失败', error);
+      toast.error('导出失败，请重试');
+    }
+  }, [reminders]);
+
   const handleAdd = useCallback(() => {
     if (!newTitle.trim()) {
       toast.error('请输入提醒标题');
@@ -113,22 +141,29 @@ export default function RemindersPage() {
       return;
     }
     let remindDate = new Date(deadlineDate);
+    // 把下拉里的中文提前量同时记成分钟数，导出日历和闹钟都读这个值。
+    let leadMinutes = 0;
 
     switch (newOffset) {
       case '提前1天':
         remindDate.setDate(remindDate.getDate() - 1);
+        leadMinutes = 1440;
         break;
       case '提前2天':
         remindDate.setDate(remindDate.getDate() - 2);
+        leadMinutes = 2880;
         break;
       case '提前1小时':
         remindDate.setHours(remindDate.getHours() - 1);
+        leadMinutes = 60;
         break;
       case '提前30分钟':
         remindDate.setMinutes(remindDate.getMinutes() - 30);
+        leadMinutes = 30;
         break;
       default:
         remindDate = deadlineDate;
+        leadMinutes = 0;
     }
 
     const remindAt = formatLocalDateTime(remindDate);
@@ -140,6 +175,7 @@ export default function RemindersPage() {
       deadline: deadlineStr,
       remindAt,
       remindOffset: newOffset,
+      remindLeadMinutes: leadMinutes,
       source: 'personal',
       note: newNote.trim() || undefined,
     });
@@ -184,14 +220,14 @@ export default function RemindersPage() {
          <div className="flex-1 leading-relaxed text-foreground/80">
            <p className="font-medium text-foreground">提醒说明</p>
            <p className="mt-1 text-xs text-muted-foreground">
-             提醒需要<span className="font-medium text-foreground">保持本页面在浏览器中打开</span>才能正常触发。
-             建议同时开启<span className="font-medium text-foreground">浏览器系统通知</span>（在「我的」页面设置），
-             这样即使页面在后台或最小化也能收到提醒弹窗。
+             网页提醒需要<span className="font-medium text-foreground">保持本页面在浏览器中打开</span>才能触发。
+             想让它真的响，点「导出日历」把待办存成 <code className="rounded bg-muted px-1">.ics</code> 文件，
+             双击导入系统日历（Windows 日历、Google 日历、手机日历都支持），之后由系统负责提醒，关掉页面也不影响。
            </p>
          </div>
        </div>
 
-       <div className="mb-4 flex gap-2">
+       <div className="mb-4 flex flex-wrap gap-2">
           <Dialog open={addDialogOpen} onOpenChange={setAddDialogOpen}>
             <DialogTrigger asChild>
               <Button size="sm">
@@ -310,6 +346,11 @@ export default function RemindersPage() {
               </Button>
             }
           />
+
+          <Button variant="outline" size="sm" onClick={handleExportIcs}>
+            <CalendarPlus className="mr-1.5 size-4" />
+            导出日历
+          </Button>
         </div>
 
         <Card className="mb-6">

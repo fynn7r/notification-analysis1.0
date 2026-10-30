@@ -1,0 +1,28 @@
+{
+  "id": "G7",
+  "title": "编造原文里没有的日期",
+  "referenceDate": "2026-10-30",
+  "timezone": "Asia/Shanghai",
+  "modelOutput": {
+    "title": "材料提交补充说明",
+    "type": "作业任务",
+    "actionTitle": "提交材料",
+    "deadline": {
+      "date": "2026-11-05",
+      "time": "17:00",
+      "evidence": "11 月 5 日 17:00 前提交"
+    },
+    "eventTime": null,
+    "location": "辅导员处",
+    "targetAudience": "",
+    "requirements": "",
+    "contact": "学院办公室",
+    "links": []
+  },
+  "assert": {
+    "error": {
+      "status": 502,
+      "code": "INVALID_MODEL_OUTPUT"
+    }
+  }
+}

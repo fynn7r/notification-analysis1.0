@@ -99,6 +99,21 @@ const REMIND_OFFSETS = [
   { value: '1h', label: '截止前1小时' },
 ];
 
+/** 把提醒下拉的中文文案换算成分钟数，写进 remindLeadMinutes。 */
+const OFFSET_MINUTES: Record<string, number> = {
+  截止前2天: 2 * 1440,
+  截止前1天: 1440,
+  截止前3小时: 180,
+  截止前1小时: 60,
+};
+
+function offsetLabelToLeadMinutes(label: string): number {
+  if (label in OFFSET_MINUTES) return OFFSET_MINUTES[label];
+  // 「截止前N分钟」这类自定义文案，直接解析数字。
+  const matched = label.match(/(\d+)\s*分钟/);
+  return matched ? Number(matched[1]) : 0;
+}
+
 const SAMPLE_TEXT = MOCK_NOTIFICATION.rawText;
 
 /** 与参考材料一起送给模型的字数是有限额的，和服务端 parse 契约的 20000 字一致。 */
@@ -561,6 +576,9 @@ export default function ParsePage() {
       deadline,
       remindAt,
       remindOffset: offsetLabel,
+      // remindOffset 是给人看的中文，数值化的提前量单独存一份，
+      // 闹钟与日历导出都读这个，不再各自从文案里反推。
+      remindLeadMinutes: offsetLabelToLeadMinutes(offsetLabel),
       source: 'notification',
     });
 
@@ -585,7 +603,10 @@ export default function ParsePage() {
       notificationId: result.id, title: values.title, type: result.type,
       importance: result.importance, deadline: values.deadline, remindAt: values.remindAt,
       timezone: result.parseContext?.timezone || DEFAULT_TIMEZONE,
-      remindOffset: `截止前${offsetMinutes}分钟`, source: 'notification',
+      remindOffset: `截止前${offsetMinutes}分钟`,
+      // 以用户最终确认的两个时间为准；弹窗里手改过提醒时间时，这个值才是对的。
+      remindLeadMinutes: values.remindLeadMinutes ?? offsetMinutes,
+      source: 'notification',
     });
     if (!storage.getReminders<Array<{ id: string }>>([]).some((item) => item.id === saved.id)) {
       reminderStore.deleteItem(saved.id);

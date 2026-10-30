@@ -1,0 +1,28 @@
+{
+  "id": "G4",
+  "title": "只有钟点没有日期",
+  "referenceDate": "2026-10-30",
+  "timezone": "Asia/Shanghai",
+  "modelOutput": {
+    "title": "四六级报名缴费",
+    "type": "缴费事务",
+    "actionTitle": "完成四六级报名缴费",
+    "deadline": {
+      "date": null,
+      "time": "23:59",
+      "evidence": "报名截止日 23:59"
+    },
+    "eventTime": null,
+    "location": "",
+    "targetAudience": "",
+    "requirements": "需完成缴费",
+    "contact": "教务处",
+    "links": []
+  },
+  "assert": {
+    "deadline": null,
+    "warningsContain": [
+      "缺少明确完整的日期或时间"
+    ]
+  }
+}
