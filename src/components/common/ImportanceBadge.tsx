@@ -23,7 +23,10 @@ const config = {
 } as const;
 
 export default function ImportanceBadge({ level, className }: ImportanceBadgeProps) {
-  const { label, className: badgeClass } = config[level];
+  // 数据是从 localStorage / SQLite 读回来的，历史版本或手工改过的记录里
+  // 完全可能出现 '高' 这种没归一化的值。这里退到 medium 而不是让
+  // 整个页面因为一个徽章白屏——渲染层的容错边界要守住。
+  const { label, className: badgeClass } = config[level] ?? config.medium;
   return (
     <Badge variant="outline" className={cn(badgeClass, className)}>
       {label}

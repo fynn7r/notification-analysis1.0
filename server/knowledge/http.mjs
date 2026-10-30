@@ -7,6 +7,7 @@ import { createEntry, updateEntry, deleteEntry, getEntry, listEntries, listChunk
 import { retrieveContext, buildKnowledgeContext, publicCitations } from './search.mjs';
 import { ReminderError, deleteReminder, importLocalReminders, listForExport, listReminders, patchReminder, upsertReminder } from './reminders-store.mjs';
 import { buildIcs } from '../../shared/ics.ts';
+import { buildRemindersCsv } from '../../shared/csv.ts';
 
 const SESSION_COOKIE = 'nk_sid';
 const CSRF_COOKIE = 'nk_csrf';
@@ -48,11 +49,6 @@ function sendFile(response, status, body, { contentType, fileName }) {
   response.setHeader('Content-Disposition', `attachment; filename="${fileName}"`);
   response.setHeader('Cache-Control', 'no-store');
   response.end(body);
-}
-
-function csvCell(value) {
-  const text = String(value ?? '');
-  return /[",\r\n]/.test(text) ? `"${text.replace(/"/g, '""')}"` : text;
 }
 
 async function readJson(request) {
@@ -410,16 +406,8 @@ export function createKnowledgeRouter({ store, secureCookies = false, sessionTtl
     if (pathname === '/api/reminders/export.csv' && method === 'GET') {
       const { user } = requireUser(request);
       const rows = listForExport(db, user.id, url.searchParams.get('status') === 'all' ? 'all' : 'open');
-      const header = ['标题', '类型', '重要度', '截止时间', '提醒时间', '提前量(分钟)', '已完成', '备注'];
-      const lines = [header.join(',')];
-      for (const row of rows) {
-        lines.push([
-          row.title, row.type, row.importance, row.deadline, row.remindAt,
-          row.remindLeadMinutes, row.completed ? '是' : '否', row.note ?? '',
-        ].map(csvCell).join(','));
-      }
-      // 带 BOM，Excel 双击打开中文才不乱码。
-      sendFile(response, 200, `\uFEFF${lines.join('\r\n')}\r\n`, {
+      // 与无账号模式共用 shared/csv.ts，列顺序和 BOM 由那一份决定。
+      sendFile(response, 200, buildRemindersCsv(rows), {
         contentType: 'text/csv; charset=utf-8',
         fileName: 'notizhi-reminders.csv',
       });

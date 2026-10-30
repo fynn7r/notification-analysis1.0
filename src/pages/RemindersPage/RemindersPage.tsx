@@ -1,7 +1,7 @@
 import { useState, useMemo, useCallback } from 'react';
 import { toast } from 'sonner';
 import { motion, AnimatePresence } from 'framer-motion';
-import { Bell, Plus, Check, Trash2, Clock, CalendarDays, CalendarPlus, User, AlertTriangle, Info, Loader2, Mic, Sparkles, RefreshCcw } from 'lucide-react';
+import { Bell, Plus, Check, Trash2, Clock, CalendarDays, CalendarPlus, FileDown, User, AlertTriangle, Info, Loader2, Mic, Sparkles, RefreshCcw } from 'lucide-react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import {
   Tabs,
@@ -44,7 +44,7 @@ import { useReminders } from '@/hooks/useReminders';
 import ImportanceBadge from '@/components/common/ImportanceBadge';
 import VoiceReminderCreator from '@/components/reminder/VoiceReminderCreator';
 import { formatCountdown, getUrgency, formatDateTime, formatLocalDateTime, getSafeTime, parseSmartDate } from '@/lib/date-utils';
-import { describeSkipped, downloadFromServer, downloadRemindersIcs } from '@/lib/export-ics';
+import { describeSkipped, downloadFromServer, downloadRemindersCsv, downloadRemindersIcs } from '@/lib/export-ics';
 import { useReminderSync, importLocalToServer, dismissPendingImport, retrySync } from '@/lib/reminder-sync';
 import { useAuth } from '@/hooks/useAuth';
 import type { ImportanceLevel } from '@/data/reminder';
@@ -135,8 +135,35 @@ export default function RemindersPage() {
     }
   }, [reminders, user]);
 
-  const handleAdd = useCallback(() => {
-    if (!newTitle.trim()) {
+  /**
+   * 导出 CSV：给「想自己再算一遍」的人一条路。
+   * 与 .ics 的差别是它不做时间过滤也不写闹钟，纯粹是数据的另一种形态。
+   */
+  const handleExportCsv = useCallback(async () => {
+    if (!reminders.length) {
+      toast.info('没有可导出的待办');
+      return;
+    }
+    try {
+      if (user) {
+        // 登录后服务端才有全量（含其他设备同步来的），本地只是缓存。
+        const result = await downloadFromServer('csv', 'all');
+        if (!result.included) {
+          toast.error(result.reason ?? '导出失败，请重试');
+          return;
+        }
+        toast.success(`已导出 ${result.included} 条待办到 CSV`);
+        return;
+      }
+      const { included } = downloadRemindersCsv(reminders);
+      toast.success(`已导出 ${included} 条待办到 CSV`);
+    } catch (error) {
+      console.error('[export] 生成 csv 失败', error);
+      toast.error('导出失败，请重试');
+    }
+  }, [reminders, user]);
+
+  const handleAdd = useCallback(() => {    if (!newTitle.trim()) {
       toast.error('请输入提醒标题');
       return;
     }
@@ -403,6 +430,11 @@ export default function RemindersPage() {
           <Button variant="outline" size="sm" onClick={handleExportIcs}>
             <CalendarPlus className="mr-1.5 size-4" />
             导出日历
+          </Button>
+
+          <Button variant="outline" size="sm" onClick={handleExportCsv}>
+            <FileDown className="mr-1.5 size-4" />
+            导出表格
           </Button>
         </div>
 

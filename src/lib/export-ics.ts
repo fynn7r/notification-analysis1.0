@@ -7,6 +7,7 @@
  */
 
 import { buildIcs, icsFileName } from '@shared/ics';
+import { buildRemindersCsv, csvFileName } from '@shared/csv';
 import type { IReminder } from '@/data/reminder';
 import { DEFAULT_TIMEZONE, dateInTimezone } from '@shared/date-time';
 import { deriveLeadMinutes, leadMinutesToOffsetLabel } from '@/lib/preferences';
@@ -49,6 +50,40 @@ export function downloadRemindersIcs(reminders: IReminder[], calendarName = '通
   // 立刻 revoke 会让部分浏览器取消下载，留一拍。
   setTimeout(() => URL.revokeObjectURL(url), 3000);
   return { included, skipped: skipped.length };
+}
+
+/**
+ * 无账号模式下的 CSV 导出。
+ * 与 .ics 不同，CSV 不丢没有时间的条目——表格本来就该是全量，
+ * 少几行比多几列更让人怀疑数据完整性。
+ *
+ * 也不过滤示例待办：列表里看得见什么就导出什么，用户才不会觉得「少了几条」。
+ * 只在同步进真账号时才需要过滤（见 reminder-sync 的 localUserReminders）。
+ */
+export function downloadRemindersCsv(reminders: IReminder[]): ExportOutcome {
+  const content = buildRemindersCsv(reminders.map((reminder) => ({
+    title: reminder.title,
+    type: reminder.type,
+    importance: reminder.importance,
+    deadline: reminder.deadline,
+    remindAt: reminder.remindAt,
+    // 旧数据没有这个字段，从两个时间现算，避免导出一列空值。
+    remindLeadMinutes: reminder.remindLeadMinutes
+      ?? deriveLeadMinutes(reminder.deadline, reminder.remindAt)
+      ?? 0,
+    completed: reminder.completed,
+    note: reminder.note,
+  })));
+  const blob = new Blob([content], { type: 'text/csv;charset=utf-8' });
+  const url = URL.createObjectURL(blob);
+  const link = document.createElement('a');
+  link.href = url;
+  link.download = csvFileName();
+  document.body.appendChild(link);
+  link.click();
+  link.remove();
+  setTimeout(() => URL.revokeObjectURL(url), 3000);
+  return { included: reminders.length, skipped: 0 };
 }
 
 /** 导出失败的条目要说清是哪些，不能静默少几条。 */

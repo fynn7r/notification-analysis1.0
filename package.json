@@ -14,7 +14,7 @@
     "build:standalone": "vite build --config vite.standalone.config.ts",
     "build:portable": "node scripts/build-portable.mjs",
     "preview:standalone": "concurrently --kill-others --names api,web \"node server/index.mjs\" \"vite preview --config vite.standalone.config.ts\"",
-    "test:api": "node --test server/parse.test.mjs server/generate.test.mjs server/interpret.test.mjs server/ai-settings.test.mjs server/rule-document.test.mjs server/knowledge.test.mjs server/remote.test.mjs server/article-extract.test.mjs server/vision-service.test.mjs server/static-server.test.mjs server/ics.test.mjs server/reminders.test.mjs server/reminders-http.test.mjs",
+    "test:api": "node --test server/parse.test.mjs server/generate.test.mjs server/interpret.test.mjs server/ai-settings.test.mjs server/rule-document.test.mjs server/knowledge.test.mjs server/remote.test.mjs server/article-extract.test.mjs server/vision-service.test.mjs server/static-server.test.mjs server/ics.test.mjs server/csv.test.mjs server/reminders.test.mjs server/reminders-http.test.mjs",
     "test:knowledge": "node --test server/knowledge.test.mjs",
     "admin:knowledge": "node scripts/knowledge-admin.mjs",
     "dev:remote": "node server/remote.mjs",
