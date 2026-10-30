@@ -3,13 +3,14 @@
 本文件记录本项目的所有重要变更。
 格式参考 [Keep a Changelog](https://keepachangelog.com/zh-CN/1.1.0/)，版本号遵循 [语义化版本](https://semver.org/lang/zh-CN/)。
 
-## [Unreleased]
+## [0.2.0] - 2026-10-30
 
 ### 新增
 
 - **待办进 SQLite，登录后可跨设备**。新增 `reminders` 表与 7 个接口（列表/新增/增量改/删除/导入本地/导出 ics/导出 csv），未登录仍走 localStorage。设计上是「内存为权威、读永远同步、写不阻塞」：先改内存立刻渲染，再排队推服务端，失败进重试队列，不因为网络让点一下卡三秒。首次登录且云端为空时，会提示「发现 N 条本地待办」由用户决定是否导入。
 - **导出到系统日历**。`.ics` 输出符合 RFC 5545：CRLF 换行、按字节 75 折行（中文一字 3 字节）、转义 `, ; \`、稳定 UID、带 `VALARM` 提醒。时间用 UTC 实例而不是 `DTSTART;TZID=`，因为缺 `VTIMEZONE` 时 Outlook 与安卓会整体偏 8 小时。没有截止或提醒时间的条目会被跳过并明确告知条数。
 - **默认提前量可配置**。核对弹窗新增「提醒提前量」下拉，改动会同时写进个人偏好，下次打开沿用；直接手改提醒时间时按两个时间的差值反推。
+- **导出表格（CSV）**。给「想自己再算一遍」的人一条路：统计这学期有多少件事、导给班委汇总、贴进 Excel 做台账。带 BOM（否则 Excel 按 GBK 解码变乱码）与 CRLF；与 `.ics` 不同，它不做时间过滤，没有截止时间的待办也留在表格里。拼装逻辑放在 `shared/csv.ts`，服务端与浏览器共用一份，避免列顺序分叉。
 - `local-store.ts`：40 行自实现的 localStorage 封装，取代平台 SDK 的 `scopedStorage`；兼容 `__miaoda___global__:` 旧命名空间与绕开封装写的裸键。
 
 ### 修复
@@ -17,12 +18,14 @@
 - **「已保存」不再误报**。原判定回读 localStorage，登录后数据落 SQLite，回读必然为空，会把刚存好的待办判成失败并删掉；改成只看内存又会在配额满时谎称成功。现在要求「内存里记得」且「最近一次落盘成功」两个条件同时成立才提示成功，否则保留表单让用户重试。
 - **删除会复活**。原先按物理删除处理，另一端刷新时用旧快照回推就活了。改为软删墓碑 `deleted_at`，同步时下发删除意图。
 - **示例待办被导进真账号**。`import-local` 现在过滤掉 `mock-` 开头的示例数据，也不把它算进「发现 N 条本地待办」。
+- **脏数据不再白屏**。`ImportanceBadge` 现在遇到不认识的 `importance` 值退到 `medium`。数据是从 localStorage / SQLite 读回来的，历史版本或手工改过的记录里出现没归一化的值完全合理，一个徽章不该带走整个页面。
 
 ### 变更
 
 - **依赖瘦身**：移除 17 个从未被引用的包（`echarts`、`echarts-for-react`、`gsap`、`@gsap/react`、`recharts`、`embla-carousel-react`、`vaul`、`cmdk`、`input-otp`、`react-day-picker`、`react-resizable-panels`、`react-hook-form`、`@hookform/resolvers`、`@formkit/auto-animate`、`next-themes`、`react-markdown`、`remark-gfm`），连带删除 8 个只服务这些包的 `ui/` 组件。生产依赖从 64 个降到 47 个。
 - README 口径修正：说明「多材料合并」的实现是文本拼接而非结构化多材料；说明周期提醒只能手动建立；补充前端 300 秒等待上限的说明；补「数据存在哪」在登录前后的差异。
 - 新增本文件与 `SECURITY.md`。
+- 测试规模：接口与业务逻辑 141 项、Playwright 端到端 39 项、离线断言样本 12 条（`npm run test:replay`，不调模型，可进 CI）。
 
 ## [0.1.2] - 2026-10-30
 
