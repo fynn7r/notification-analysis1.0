@@ -9,7 +9,7 @@
  * @exports storage（包含所有数据的 get/set 方法）
  */
 
-import { scopedStorage } from '@lark-apaas/client-toolkit-lite';
+import { localStore } from '@/lib/local-store';
 import { toast } from 'sonner';
 
 const STORAGE_KEYS = {
@@ -48,9 +48,9 @@ const OLD_KEYS: Record<string, string> = {
 function migrateOldKeys(): void {
   try {
     for (const [oldKey, newKey] of Object.entries(OLD_KEYS)) {
-      const raw = scopedStorage.getItem(oldKey);
-      if (raw !== null && scopedStorage.getItem(newKey) === null) {
-        scopedStorage.setItem(newKey, raw);
+      const raw = localStore.getItem(oldKey);
+      if (raw !== null && localStore.getItem(newKey) === null) {
+        localStore.setItem(newKey, raw);
       }
       // 迁移后不删旧 key，留作兜底（安全第一）
     }
@@ -64,7 +64,7 @@ migrateOldKeys();
 
 function safeGet<T>(key: string, fallback: T): T {
   try {
-    const raw = scopedStorage.getItem(key);
+    const raw = localStore.getItem(key);
     if (!raw) return fallback;
     return JSON.parse(raw) as T;
   } catch {
@@ -72,9 +72,10 @@ function safeGet<T>(key: string, fallback: T): T {
   }
 }
 
-function safeSet<T>(key: string, value: T): void {
+function safeSet<T>(key: string, value: T): boolean {
   try {
-    scopedStorage.setItem(key, JSON.stringify(value));
+    localStore.setItem(key, JSON.stringify(value));
+    return true;
   } catch (err) {
     // 配额溢出等错误不能静默：用户需要知道数据没存上。
     // 每次会话只提示一次，避免连续写操作刷屏。
@@ -87,6 +88,7 @@ function safeSet<T>(key: string, value: T): void {
         /* toast 初始化失败时静默 */
       }
     }
+    return false;
   }
 }
 
@@ -94,68 +96,69 @@ let quotaWarned = false;
 
 function safeGetFlag(key: string): boolean {
   try {
-    return scopedStorage.getItem(key) === '1';
+    return localStore.getItem(key) === '1';
   } catch {
     return false;
   }
 }
 
-function safeSetFlag(key: string, value: boolean): void {
+function safeSetFlag(key: string, value: boolean): boolean {
   try {
-    scopedStorage.setItem(key, value ? '1' : '0');
+    localStore.setItem(key, value ? '1' : '0');
+    return true;
   } catch {
-    /* ignore */
+    return false;
   }
 }
 
 export const storage = {
   // rules
   getRules: <T>(fallback: T) => safeGet<T>(STORAGE_KEYS.rules, fallback),
-  setRules: <T>(value: T) => safeSet(STORAGE_KEYS.rules, value),
+  setRules: <T>(value: T): boolean => safeSet(STORAGE_KEYS.rules, value),
   getRulesInitialized: () => safeGetFlag(STORAGE_KEYS.rulesInit),
-  setRulesInitialized: (v: boolean) => safeSetFlag(STORAGE_KEYS.rulesInit, v),
+  setRulesInitialized: (v: boolean): boolean => safeSetFlag(STORAGE_KEYS.rulesInit, v),
 
   // goals
   getGoals: <T>(fallback: T) => safeGet<T>(STORAGE_KEYS.goals, fallback),
-  setGoals: <T>(value: T) => safeSet(STORAGE_KEYS.goals, value),
+  setGoals: <T>(value: T): boolean => safeSet(STORAGE_KEYS.goals, value),
   getGoalsInitialized: () => safeGetFlag(STORAGE_KEYS.goalsInit),
-  setGoalsInitialized: (v: boolean) => safeSetFlag(STORAGE_KEYS.goalsInit, v),
+  setGoalsInitialized: (v: boolean): boolean => safeSetFlag(STORAGE_KEYS.goalsInit, v),
 
   // reminders
   getReminders: <T>(fallback: T) => safeGet<T>(STORAGE_KEYS.reminders, fallback),
-  setReminders: <T>(value: T) => safeSet(STORAGE_KEYS.reminders, value),
+  setReminders: <T>(value: T): boolean => safeSet(STORAGE_KEYS.reminders, value),
   getRemindersInitialized: () => safeGetFlag(STORAGE_KEYS.remindersInit),
-  setRemindersInitialized: (v: boolean) => safeSetFlag(STORAGE_KEYS.remindersInit, v),
+  setRemindersInitialized: (v: boolean): boolean => safeSetFlag(STORAGE_KEYS.remindersInit, v),
 
   // history
   getHistory: <T>(fallback: T) => safeGet<T>(STORAGE_KEYS.history, fallback),
-  setHistory: <T>(value: T) => safeSet(STORAGE_KEYS.history, value),
+  setHistory: <T>(value: T): boolean => safeSet(STORAGE_KEYS.history, value),
   getHistoryInitialized: () => safeGetFlag(STORAGE_KEYS.historyInit),
-  setHistoryInitialized: (v: boolean) => safeSetFlag(STORAGE_KEYS.historyInit, v),
+  setHistoryInitialized: (v: boolean): boolean => safeSetFlag(STORAGE_KEYS.historyInit, v),
 
   // onboarding
   getOnboarded: () => safeGetFlag(STORAGE_KEYS.onboarded),
-  setOnboarded: (v: boolean) => safeSetFlag(STORAGE_KEYS.onboarded, v),
+  setOnboarded: (v: boolean): boolean => safeSetFlag(STORAGE_KEYS.onboarded, v),
 
   // recurring reminders
   getRecurring: <T>(fallback: T) => safeGet<T>(STORAGE_KEYS.recurring, fallback),
-  setRecurring: <T>(value: T) => safeSet(STORAGE_KEYS.recurring, value),
+  setRecurring: <T>(value: T): boolean => safeSet(STORAGE_KEYS.recurring, value),
   getRecurringInitialized: () => safeGetFlag(STORAGE_KEYS.recurringInit),
-  setRecurringInitialized: (v: boolean) => safeSetFlag(STORAGE_KEYS.recurringInit, v),
+  setRecurringInitialized: (v: boolean): boolean => safeSetFlag(STORAGE_KEYS.recurringInit, v),
 
   // user profile
   getProfile: <T>(fallback: T) => safeGet<T>(STORAGE_KEYS.profile, fallback),
-  setProfile: <T>(value: T) => safeSet(STORAGE_KEYS.profile, value),
+  setProfile: <T>(value: T): boolean => safeSet(STORAGE_KEYS.profile, value),
 
   // 草稿
   getDraft: <T>(fallback: T) => safeGet<T>(STORAGE_KEYS.draft, fallback),
-  setDraft: <T>(value: T) => safeSet(STORAGE_KEYS.draft, value),
+  setDraft: <T>(value: T): boolean => safeSet(STORAGE_KEYS.draft, value),
 
   // 当前解析会话（路由切换/刷新后恢复）
   getParseSession: <T>(fallback: T) => safeGet<T>(STORAGE_KEYS.parseSession, fallback),
-  setParseSession: <T>(value: T) => safeSet(STORAGE_KEYS.parseSession, value),
+  setParseSession: <T>(value: T): boolean => safeSet(STORAGE_KEYS.parseSession, value),
 
   // 本地偏好（默认提醒提前量等）
   getPreferences: <T>(fallback: T) => safeGet<T>(STORAGE_KEYS.preferences, fallback),
-  setPreferences: <T>(value: T) => safeSet(STORAGE_KEYS.preferences, value),
+  setPreferences: <T>(value: T): boolean => safeSet(STORAGE_KEYS.preferences, value),
 };

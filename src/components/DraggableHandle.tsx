@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from 'react';
-import { scopedStorage } from '@lark-apaas/client-toolkit-lite';
+import { localStore } from '@/lib/local-store';
 import { RefreshCcw, GripVertical } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import {
@@ -39,7 +39,7 @@ export default function DraggableHandle({ onOpen }: DraggableHandleProps) {
 
   // 初始化：从 localStorage 读取位置
   useEffect(() => {
-    const saved = scopedStorage.getItem(STORAGE_KEY);
+    const saved = localStore.getItem(STORAGE_KEY);
     let initialTop: number;
     if (saved) {
       const num = Number(saved);
@@ -94,7 +94,7 @@ export default function DraggableHandle({ onOpen }: DraggableHandleProps) {
     if (!dragRef.current.active) return;
 
     if (dragRef.current.moved) {
-      scopedStorage.setItem(STORAGE_KEY, String(topRef.current));
+      localStore.setItem(STORAGE_KEY, String(topRef.current));
     }
 
     setIsDragging(false);

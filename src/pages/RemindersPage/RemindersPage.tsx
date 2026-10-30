@@ -44,7 +44,9 @@ import { useReminders } from '@/hooks/useReminders';
 import ImportanceBadge from '@/components/common/ImportanceBadge';
 import VoiceReminderCreator from '@/components/reminder/VoiceReminderCreator';
 import { formatCountdown, getUrgency, formatDateTime, formatLocalDateTime, getSafeTime, parseSmartDate } from '@/lib/date-utils';
-import { describeSkipped, downloadRemindersIcs } from '@/lib/export-ics';
+import { describeSkipped, downloadFromServer, downloadRemindersIcs } from '@/lib/export-ics';
+import { useReminderSync, importLocalToServer, dismissPendingImport, retrySync } from '@/lib/reminder-sync';
+import { useAuth } from '@/hooks/useAuth';
 import type { ImportanceLevel } from '@/data/reminder';
 import { cn } from '@/lib/utils';
 
@@ -54,6 +56,8 @@ type SourceFilter = 'all' | 'notification' | 'personal';
 export default function RemindersPage() {
   const { reminders, loading, toggleComplete, deleteReminder, addReminder } =
     useReminders();
+  const { user } = useAuth();
+  const sync = useReminderSync();
   const [filter, setFilter] = useState<FilterTab>('pending');
   const [sourceFilter, setSourceFilter] = useState<SourceFilter>('all');
   const [deleteTarget, setDeleteTarget] = useState<string | null>(null);
@@ -95,14 +99,23 @@ export default function RemindersPage() {
     toast.success('已删除提醒');
   }, [deleteReminder]);
 
-  /** 导出 .ics：浏览器本地生成，不需要联网，也不需要账号。 */
-  const handleExportIcs = useCallback(() => {
+  /** 导出 .ics：登录后走服务端（能带上其他设备同步来的待办），未登录时浏览器本地生成。 */
+  const handleExportIcs = useCallback(async () => {
     const pending = reminders.filter((r) => !r.completed);
     if (!pending.length) {
       toast.info('没有可导出的待办');
       return;
     }
     try {
+      if (user) {
+        const result = await downloadFromServer('ics');
+        if (!result.included) {
+          toast.error(result.reason ?? '这些待办都没有日期，暂时无法导出到日历');
+          return;
+        }
+        toast.success(`已导出 ${result.included} 条待办，双击文件即可导入系统日历`);
+        return;
+      }
       const { included, skipped } = downloadRemindersIcs(reminders);
       if (included === 0) {
         toast.error('这些待办都没有日期，暂时无法导出到日历');
@@ -120,7 +133,7 @@ export default function RemindersPage() {
       console.error('[export] 生成 ics 失败', error);
       toast.error('导出失败，请重试');
     }
-  }, [reminders]);
+  }, [reminders, user]);
 
   const handleAdd = useCallback(() => {
     if (!newTitle.trim()) {
@@ -226,6 +239,46 @@ export default function RemindersPage() {
            </p>
          </div>
        </div>
+
+       {/* 本地数据迁移提示：只在「服务端为空、本地有东西」时出现，不打扰已有账号 */}
+       {sync.status === 'pending-import' && (
+         <div className="mb-4 rounded-xl border border-amber-300/60 bg-amber-50 p-4 text-sm">
+           <p className="font-medium text-amber-900">发现 {sync.pendingImport} 条本地待办</p>
+           <p className="mt-1 text-xs text-amber-800">
+             这些待办目前只存在这台浏览器里，清缓存就会丢。导入账号后会保存到本机数据库，换设备登录也能看到。
+           </p>
+           <div className="mt-3 flex gap-2">
+             <Button
+               size="sm"
+               onClick={async () => {
+                 const result = await importLocalToServer();
+                 if (result.imported) {
+                   toast.success(`已导入 ${result.imported} 条待办${result.skipped ? `，跳过 ${result.skipped} 条` : ''}`);
+                 } else {
+                   toast.error('没有导入任何待办，请稍后重试');
+                 }
+               }}
+             >
+               导入账号
+             </Button>
+             <Button size="sm" variant="ghost" onClick={dismissPendingImport}>暂不导入</Button>
+           </div>
+         </div>
+       )}
+
+       {/* 同步异常：降级提示，不遮挡操作 */}
+       {sync.status === 'offline' && (
+         <div className="mb-4 flex items-start gap-3 rounded-xl border border-amber-300/60 bg-amber-50 p-4 text-sm">
+           <AlertTriangle className="mt-0.5 size-4 shrink-0 text-amber-600" />
+           <div className="flex-1">
+             <p className="font-medium text-amber-900">未同步</p>
+             <p className="mt-1 text-xs text-amber-800">
+               {sync.lastError ?? '改动已保存在本地，恢复后会自动同步。'}
+             </p>
+           </div>
+           <Button size="sm" variant="outline" onClick={() => void retrySync()}>重试</Button>
+         </div>
+       )}
 
        <div className="mb-4 flex flex-wrap gap-2">
           <Dialog open={addDialogOpen} onOpenChange={setAddDialogOpen}>

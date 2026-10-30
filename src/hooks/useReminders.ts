@@ -6,26 +6,27 @@
  * @exports useReminders（React Hook）, reminderStore（全局状态单例）
  */
 
-import { useCallback } from 'react';
-import { IReminder, MOCK_REMINDERS } from '@/data/reminder';
-import { storage } from '@/lib/storage';
-import { createLocalStore } from '@/lib/create-local-store';
+import { useCallback, useEffect } from 'react';
+import { IReminder } from '@/data/reminder';
+import { reminderStore } from '@/lib/reminder-store';
+import { syncAfterAuth } from '@/lib/reminder-sync';
+import { useAuth } from '@/hooks/useAuth';
 import { genId } from '@/lib/utils';
 
-// 导出单例 store：闹钟调度（useAlarm）等非组件场景需要直接读写，
-// 必须走同一份内存状态，避免绕过 store 直写 localStorage 造成状态覆盖
-export const reminderStore = createLocalStore<IReminder>({
-  storageKey: '__app_notizhi_reminders',
-  initFlagKey: '__app_notizhi_reminders_init',
-  mockData: MOCK_REMINDERS,
-  get: () => storage.getReminders<IReminder[] | null>(null),
-  set: (v) => storage.setReminders(v),
-  getInitFlag: () => storage.getRemindersInitialized(),
-  setInitFlag: (v) => storage.setRemindersInitialized(v),
-});
+// 单例 store 拆到 @/lib/reminder-store，避免同步层与 store 互相 import 形成环。
+// 这里继续导出，保持 useAlarm 等既有调用点不变。
+export { reminderStore };
 
 export function useReminders() {
   const { items: reminders, loading } = reminderStore.useStore();
+  const { ready, user } = useAuth();
+
+  // 登录态明确之后才决定要不要和服务端对齐：
+  // 未登录 → 纯本地，行为与之前完全一致；登录 → 拉云端，必要时提示导入本地数据。
+  useEffect(() => {
+    if (!ready) return;
+    void syncAfterAuth(user?.id ?? null);
+  }, [ready, user?.id]);
 
   const addReminder = useCallback(
     (reminder: Omit<IReminder, 'id' | 'createdAt' | 'completed'>) => {

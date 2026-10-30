@@ -608,9 +608,14 @@ export default function ParsePage() {
       remindLeadMinutes: values.remindLeadMinutes ?? offsetMinutes,
       source: 'notification',
     });
-    if (!storage.getReminders<Array<{ id: string }>>([]).some((item) => item.id === saved.id)) {
-      reminderStore.deleteItem(saved.id);
-      toast.error('待办未保存，请释放浏览器存储空间后重试。');
+    // 判定「存上了没有」要看两件事：
+    // 1. store 自己记不记得（登录后数据落在 SQLite，回读 localStorage 会误判成失败）；
+    // 2. 最近一次落盘是否成功（配额满时内存有、存储没有，刷新就没了）。
+    // 两个都过才敢说「已保存」，否则就是误报成功。
+    if (!reminderStore.findItem(saved.id) || !reminderStore.getLastPersistOk()) {
+      // 失败原因可能是配额溢出，也可能是别的写入异常，所以先给可重试的结论，
+      // 再给一条最可能的自救动作，不把猜测写成断言。
+      toast.error('待办未保存，请重试。若反复失败，请清理浏览器存储空间。');
       return;
     }
     setResult(updated);

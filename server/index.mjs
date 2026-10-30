@@ -30,7 +30,12 @@ export function createApiServer(config = configuration(), fetchImpl = fetch, set
     try {
       if (staticHandler && await staticHandler(request, response)) return;
       const activeConfig = settingsStore ? settingsStore.getConfig() : config;
-      if (knowledgeRouter && (pathname.startsWith('/api/auth/') || pathname.startsWith('/api/knowledge/'))) {
+      if (knowledgeRouter && (
+        pathname.startsWith('/api/auth/')
+        || pathname.startsWith('/api/knowledge/')
+        || pathname === '/api/reminders'
+        || pathname.startsWith('/api/reminders/')
+      )) {
         await knowledgeRouter.handle(request, response);
         return;
       }

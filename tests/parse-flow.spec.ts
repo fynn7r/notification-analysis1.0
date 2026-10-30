@@ -29,10 +29,10 @@ test('核对、修改时间后保存，导航及刷新后待办和解析历史�
   await expect(page.getByRole('dialog')).toBeVisible();
   await expect(page.getByLabel('需要完成的动作')).toHaveValue('填写青马学堂报名表');
   await expect(page.getByLabel('待办截止时间（必填）')).toHaveValue('2026-10-07T12:00');
-  await expect(page.getByLabel('提醒时间（默认提前30分钟）')).toHaveValue('2026-10-07T11:30');
+  await expect(page.getByLabel(/^提醒时间（当前为/)).toHaveValue('2026-10-07T11:30');
   await page.getByLabel('需要完成的动作').fill('填写青马学堂报名表（已核对）');
   await page.getByLabel('待办截止时间（必填）').fill('2026-10-07T13:00');
-  await expect(page.getByLabel('提醒时间（默认提前30分钟）')).toHaveValue('2026-10-07T12:30');
+  await expect(page.getByLabel(/^提醒时间（当前为/)).toHaveValue('2026-10-07T12:30');
   await page.getByLabel('活动开始时间（可选，独立于截止时间）').fill('2026-10-08T21:00');
   await page.getByRole('button', { name: '确认并保存待办' }).click();
   await expect(page.getByRole('dialog')).not.toBeVisible();
@@ -112,7 +112,7 @@ test('浏览器存储失败时保留确认表单，不误报待办已保存', as
   await page.getByLabel('通知原文').fill(notice);
   await page.getByRole('button', { name: '智能解析', exact: true }).click();
   await page.getByRole('button', { name: '确认并保存待办' }).click();
-  await expect(page.getByText('待办未保存，请释放浏览器存储空间后重试。', { exact: true })).toBeVisible();
+  await expect(page.getByText(/待办未保存/)).toBeVisible();
   await expect(page.getByRole('dialog')).toBeVisible();
   await expect(page.getByLabel('需要完成的动作')).toHaveValue('填写青马学堂报名表');
   expect(await page.evaluate(() => JSON.parse(localStorage.getItem('__app_notizhi_reminders') || '[]').some((item: { title: string }) => item.title === '填写青马学堂报名表'))).toBe(false);
@@ -156,7 +156,7 @@ test('完整竞赛示例解析后进入核对，日期占位词需要人工补�
   await expect(page.getByRole('dialog')).toBeVisible();
   await expect(page.getByLabel('需要完成的动作')).toHaveValue('组队并完成报名');
   await expect(page.getByLabel('待办截止时间（必填）')).toHaveValue('');
-  await expect(page.getByLabel('提醒时间（默认提前30分钟）')).toHaveValue('');
+  await expect(page.getByLabel(/^提醒时间（当前为/)).toHaveValue('');
   await expect(page.getByLabel('活动开始时间（可选，独立于截止时间）')).toHaveValue('');
   await page.getByRole('button', { name: '确认并保存待办' }).click();
   await expect(page.getByRole('alert')).toContainText('请补齐有效的待办截止日期');

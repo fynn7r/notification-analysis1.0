@@ -5,6 +5,8 @@
 import { KnowledgeError, publicUser, createSession, resolveSession, revokeSession, login, consumeInvite, createInvite, listInvites, createRateLimiter, countUsers } from './auth.mjs';
 import { createEntry, updateEntry, deleteEntry, getEntry, listEntries, listChunks, countEntries, recordLegacyImport, findLegacyImport } from './store.mjs';
 import { retrieveContext, buildKnowledgeContext, publicCitations } from './search.mjs';
+import { ReminderError, deleteReminder, importLocalReminders, listForExport, listReminders, patchReminder, upsertReminder } from './reminders-store.mjs';
+import { buildIcs } from '../../shared/ics.ts';
 
 const SESSION_COOKIE = 'nk_sid';
 const CSRF_COOKIE = 'nk_csrf';
@@ -37,6 +39,20 @@ function sendJson(response, status, value, cookies = []) {
   response.setHeader('Content-Type', 'application/json; charset=utf-8');
   response.setHeader('Cache-Control', 'no-store');
   response.end(JSON.stringify(value));
+}
+
+/** 文件下载：Content-Disposition 用 ASCII 文件名，中文名会让某些客户端存成乱码。 */
+function sendFile(response, status, body, { contentType, fileName }) {
+  response.statusCode = status;
+  response.setHeader('Content-Type', contentType);
+  response.setHeader('Content-Disposition', `attachment; filename="${fileName}"`);
+  response.setHeader('Cache-Control', 'no-store');
+  response.end(body);
+}
+
+function csvCell(value) {
+  const text = String(value ?? '');
+  return /[",\r\n]/.test(text) ? `"${text.replace(/"/g, '""')}"` : text;
 }
 
 async function readJson(request) {
@@ -341,6 +357,93 @@ export function createKnowledgeRouter({ store, secureCookies = false, sessionTtl
       return true;
     }
 
+    // ── 待办与提醒 ────────────────────────────────────────
+    if (pathname === '/api/reminders' && method === 'GET') {
+      const { user } = requireUser(request);
+      const status = url.searchParams.get('status') || 'open';
+      sendJson(response, 200, {
+        status,
+        reminders: listReminders(db, user.id, status === 'done' || status === 'all' ? status : 'open'),
+      });
+      return true;
+    }
+
+    if (pathname === '/api/reminders' && method === 'POST') {
+      const { user, session } = requireUser(request);
+      requireCsrf(request, session);
+      const body = await readJson(request);
+      sendJson(response, 201, { reminder: upsertReminder(db, user.id, body) });
+      return true;
+    }
+
+    // 一次性迁移：把浏览器里攒下的待办搬进账号。必须在 :id 分支之前判断。
+    if (pathname === '/api/reminders/import-local' && method === 'POST') {
+      const { user, session } = requireUser(request);
+      requireCsrf(request, session);
+      const body = await readJson(request);
+      sendJson(response, 200, importLocalReminders(db, user.id, body.reminders ?? body.items ?? []));
+      return true;
+    }
+
+    if (pathname === '/api/reminders/export.ics' && method === 'GET') {
+      const { user } = requireUser(request);
+      const status = url.searchParams.get('status') === 'all' ? 'all' : 'open';
+      const rows = listForExport(db, user.id, status);
+      const { content, included, skipped } = buildIcs(rows, { calendarName: `通知智析 · ${user.displayName || user.username}` });
+      // 一条都没导出来时说清楚原因，别给用户一个空文件。
+      if (!included) {
+        sendJson(response, 200, {
+          error: { code: 'NOTHING_TO_EXPORT', message: '这些待办都没有截止或提醒时间，暂时无法写入日历。' },
+          skipped: skipped.map((item) => item.title),
+        });
+        return true;
+      }
+      response.setHeader('X-Exported-Events', String(included));
+      response.setHeader('X-Skipped-Events', String(skipped.length));
+      sendFile(response, 200, content, {
+        contentType: 'text/calendar; charset=utf-8',
+        fileName: 'notizhi-reminders.ics',
+      });
+      return true;
+    }
+
+    if (pathname === '/api/reminders/export.csv' && method === 'GET') {
+      const { user } = requireUser(request);
+      const rows = listForExport(db, user.id, url.searchParams.get('status') === 'all' ? 'all' : 'open');
+      const header = ['标题', '类型', '重要度', '截止时间', '提醒时间', '提前量(分钟)', '已完成', '备注'];
+      const lines = [header.join(',')];
+      for (const row of rows) {
+        lines.push([
+          row.title, row.type, row.importance, row.deadline, row.remindAt,
+          row.remindLeadMinutes, row.completed ? '是' : '否', row.note ?? '',
+        ].map(csvCell).join(','));
+      }
+      // 带 BOM，Excel 双击打开中文才不乱码。
+      sendFile(response, 200, `\uFEFF${lines.join('\r\n')}\r\n`, {
+        contentType: 'text/csv; charset=utf-8',
+        fileName: 'notizhi-reminders.csv',
+      });
+      return true;
+    }
+
+    const reminderMatch = pathname.match(/^\/api\/reminders\/([^/]+)$/);
+    if (reminderMatch) {
+      const id = decodeURIComponent(reminderMatch[1]);
+      if (method === 'PATCH') {
+        const { user, session } = requireUser(request);
+        requireCsrf(request, session);
+        const body = await readJson(request);
+        sendJson(response, 200, { reminder: patchReminder(db, user.id, id, body) });
+        return true;
+      }
+      if (method === 'DELETE') {
+        const { user, session } = requireUser(request);
+        requireCsrf(request, session);
+        sendJson(response, 200, deleteReminder(db, user.id, id));
+        return true;
+      }
+    }
+
     return false;
   }
 
@@ -353,6 +456,10 @@ export function createKnowledgeRouter({ store, secureCookies = false, sessionTtl
         return true;
       } catch (error) {
         if (error instanceof KnowledgeError) {
+          sendJson(response, error.status, { error: { code: error.code, message: error.message } });
+          return true;
+        }
+        if (error instanceof ReminderError) {
           sendJson(response, error.status, { error: { code: error.code, message: error.message } });
           return true;
         }

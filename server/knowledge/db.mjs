@@ -6,7 +6,7 @@ import { DatabaseSync } from 'node:sqlite';
 import { mkdirSync } from 'node:fs';
 import { resolve } from 'node:path';
 
-export const SCHEMA_VERSION = 1;
+export const SCHEMA_VERSION = 2;
 
 export function nowIso() {
   return new Date().toISOString();
@@ -91,6 +91,28 @@ CREATE TABLE IF NOT EXISTS settings (
   k TEXT PRIMARY KEY,
   v TEXT NOT NULL
 );
+
+-- 待办/提醒。关键列用于排序、筛选、闹钟和导出，其余字段整体存在 payload 里，
+-- 这样前端 IReminder 加字段不必跟着改表。
+-- deleted_at 是墓碑：跨端同步时硬删会让另一端把自己的副本推回来，删掉的东西会复活。
+CREATE TABLE IF NOT EXISTS reminders (
+  id                  TEXT PRIMARY KEY,
+  owner_id            INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+  title               TEXT NOT NULL,
+  type                TEXT NOT NULL DEFAULT '',
+  importance          TEXT NOT NULL DEFAULT 'medium',
+  deadline            TEXT,
+  remind_at           TEXT,
+  remind_lead_minutes INTEGER NOT NULL DEFAULT 30,
+  recurrence          TEXT,
+  completed           INTEGER NOT NULL DEFAULT 0,
+  payload             TEXT NOT NULL DEFAULT '{}',
+  created_at          TEXT NOT NULL,
+  updated_at          TEXT NOT NULL,
+  deleted_at          TEXT
+);
+CREATE INDEX IF NOT EXISTS idx_reminders_owner
+  ON reminders(owner_id, deleted_at, completed, deadline);
 `;
 
 /**
@@ -118,6 +140,9 @@ export function openKnowledgeDb({ dir }) {
   const current = db.prepare('SELECT v FROM settings WHERE k = ?').get('schema_version');
   if (!current) {
     db.prepare('INSERT INTO settings (k, v) VALUES (?, ?)').run('schema_version', String(SCHEMA_VERSION));
+  } else if (Number(current.v) < SCHEMA_VERSION) {
+    // 建表语句都是 IF NOT EXISTS，这里只需把版本号推进，便于将来按版本分支迁移。
+    db.prepare('UPDATE settings SET v = ? WHERE k = ?').run(String(SCHEMA_VERSION), 'schema_version');
   }
 
   return {

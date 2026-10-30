@@ -18,14 +18,19 @@ export interface CreateLocalStoreOptions<T> {
   mockData: T[];
   /** 从存储中读取（需自行 JSON.parse） */
   get: () => T[] | null;
-  /** 写入存储（需自行 JSON.stringify） */
-  set: (value: T[]) => void;
+  /** 写入存储（需自行 JSON.stringify）。返回 false 表示没写进去（如配额溢出）。 */
+  set: (value: T[]) => boolean | void;
   /** 读取初始化标记 */
   getInitFlag: () => boolean;
   /** 写入初始化标记 */
   setInitFlag: (value: boolean) => void;
   /** 生成 id */
   genId?: (item: T) => string;
+  /**
+   * 每次写入后被调用，用来把变更同步到服务端。
+   * 读路径始终同步命中内存，所以 useAlarm 这类定时器回调不需要改成异步。
+   */
+  onChange?: (change: { type: 'add' | 'update' | 'delete'; id: string; item?: T }) => void;
 }
 
 export interface LocalStoreApi<T> {
@@ -45,17 +50,35 @@ export interface LocalStoreApi<T> {
   deleteItem: (id: string) => void;
   /** 根据 id 查找一项 */
   findItem: (id: string) => T | undefined;
+  /**
+   * 用外部数据（服务端）替换内存副本。
+   * 与 setItems 的区别：不触发 onChange，避免「拉取下来的数据又被推回去」的死循环。
+   */
+  hydrate: (items: T[]) => void;
+  /**
+   * 最近一次写回底层存储是否成功。
+   *
+   * 存在的理由：内存是权威副本，所以 `findItem` 只能回答「我记不记得这条」，
+   * 回答不了「它到底落盘了没有」。配额满的时候这两件事会分叉：
+   * 内存里有、localStorage 里没有、刷新就没了。调用方在做「已保存」这种承诺之前，
+   * 需要一次能问到真实结果的信号，否则就变成误报成功。
+   *
+   * 语义只保证「最近一次写入」，所以必须在写入之后、下一次写入之前立即读。
+   */
+  getLastPersistOk: () => boolean;
 }
 
 export function createLocalStore<T extends { id: string; createdAt?: number }>(
   opts: CreateLocalStoreOptions<T>
 ): LocalStoreApi<T> {
-  const { get, set, getInitFlag, setInitFlag, mockData } = opts;
+  const { get, set, getInitFlag, setInitFlag, mockData, onChange } = opts;
 
   // 模块级共享状态（单例）
   let state: T[] = [];
   let initialized = false;
   let loading = true;
+  /** 最近一次写回底层存储的结果，见 LocalStoreApi.getLastPersistOk 的说明。 */
+  let lastPersistOk = true;
   const listeners = new Set<(items: T[], isLoading: boolean) => void>();
 
   function notify() {
@@ -81,7 +104,9 @@ export function createLocalStore<T extends { id: string; createdAt?: number }>(
   }
 
   function writeToStorage() {
-    set(state);
+    // set 会返回 false 表示写入失败（配额溢出等）；老实现返回 void，按成功处理。
+    lastPersistOk = set(state) !== false;
+    return lastPersistOk;
   }
 
   function useStore() {
@@ -139,6 +164,7 @@ export function createLocalStore<T extends { id: string; createdAt?: number }>(
     state = [newItem, ...state];
     writeToStorage();
     notify();
+    onChange?.({ type: 'add', id: newItem.id, item: newItem });
     return newItem;
   }
 
@@ -147,11 +173,21 @@ export function createLocalStore<T extends { id: string; createdAt?: number }>(
     state = state.map((item) => (item.id === id ? { ...item, ...updates } : item));
     writeToStorage();
     notify();
+    const updated = state.find((item) => item.id === id);
+    if (updated) onChange?.({ type: 'update', id, item: updated });
   }
 
   function deleteItem(id: string) {
     init();
     state = state.filter((item) => item.id !== id);
+    writeToStorage();
+    notify();
+    onChange?.({ type: 'delete', id });
+  }
+
+  function hydrate(items: T[]) {
+    init();
+    state = items;
     writeToStorage();
     notify();
   }
@@ -170,5 +206,7 @@ export function createLocalStore<T extends { id: string; createdAt?: number }>(
     updateItem,
     deleteItem,
     findItem,
+    hydrate,
+    getLastPersistOk: () => lastPersistOk,
   };
 }

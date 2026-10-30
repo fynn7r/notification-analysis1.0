@@ -8,7 +8,7 @@
 
 import { buildIcs, icsFileName } from '@shared/ics';
 import type { IReminder } from '@/data/reminder';
-import { DEFAULT_TIMEZONE } from '@shared/date-time';
+import { DEFAULT_TIMEZONE, dateInTimezone } from '@shared/date-time';
 import { deriveLeadMinutes, leadMinutesToOffsetLabel } from '@/lib/preferences';
 
 export interface ExportOutcome {
@@ -62,4 +62,36 @@ export function describeSkipped(reminders: IReminder[]): string[] {
 export function offsetLabelOf(reminder: IReminder): string {
   const minutes = reminder.remindLeadMinutes ?? deriveLeadMinutes(reminder.deadline, reminder.remindAt) ?? 0;
   return leadMinutesToOffsetLabel(minutes);
+}
+
+/**
+ * 从服务端导出（登录态才可用）。相比本地导出，它能带上其他设备同步上来的待办。
+ * 服务端在没有可写事件时会返回 JSON 说明原因，所以要判断内容类型再下载。
+ */
+export async function downloadFromServer(kind: 'ics' | 'csv', status: 'open' | 'all' = 'open'): Promise<ExportOutcome & { reason?: string }> {
+  const response = await fetch(`/api/reminders/export.${kind}?status=${status}`, { credentials: 'same-origin' });
+  const contentType = response.headers.get('content-type') ?? '';
+  if (!contentType.includes('text/')) {
+    // 形如 { error: { code: 'NOTHING_TO_EXPORT' }, skipped: [...] }
+    let payload: { error?: { message?: string }; skipped?: string[] } | null = null;
+    try { payload = await response.json(); } catch { /* 忽略 */ }
+    return {
+      included: 0,
+      skipped: payload?.skipped?.length ?? 0,
+      reason: payload?.error?.message ?? '导出失败，请重试。',
+    };
+  }
+  const blob = await response.blob();
+  const url = URL.createObjectURL(blob);
+  const link = document.createElement('a');
+  link.href = url;
+  link.download = kind === 'ics' ? icsFileName() : `notizhi-reminders-${dateInTimezone(new Date()).replace(/-/g, '')}.csv`;
+  document.body.appendChild(link);
+  link.click();
+  link.remove();
+  setTimeout(() => URL.revokeObjectURL(url), 3000);
+  return {
+    included: Number(response.headers.get('x-exported-events') ?? 0),
+    skipped: Number(response.headers.get('x-skipped-events') ?? 0),
+  };
 }

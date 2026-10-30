@@ -194,9 +194,11 @@ AI_VISION_MODEL=qwen3-vl-plus
 
 | 内容 | 位置 | 备份建议 |
 |---|---|---|
-| 账号、知识库、邀请码 | `.local/knowledge/knowledge.db` | 复制整个 `.local/` 目录 |
+| 账号、知识库、邀请码、登录后的待办 | `.local/knowledge/knowledge.db` | 复制整个 `.local/` 目录（或用 `sqlite3 knowledge.db ".backup"`） |
 | 模型密钥与端口配置 | `.env.local` | 含密钥，单独妥善保存 |
-| 待办、提醒、历史、个人设置 | 浏览器 localStorage | 换浏览器或清缓存会丢失 |
+| 未登录时的待办、历史、个人设置 | 浏览器 localStorage | 换浏览器或清缓存会丢失；登录后会自动导入账号 |
+
+不登录也能用，数据全在本地；登录后待办改存 SQLite，换设备重新登录即可看到。首次登录时如果云端还是空的、本机却已有待办，会提示「发现 N 条本地待办」让你决定是否导入；导入完成后以账号数据为准。
 
 `.gitignore` 已排除 `.env.local`、`.local/`、`dist-standalone/`，误提交不会泄露密钥和业务数据。
 

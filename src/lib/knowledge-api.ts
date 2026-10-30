@@ -83,6 +83,11 @@ async function request<T>(path: string, init: RequestInit = {}): Promise<T> {
   return payload as T;
 }
 
+/** 供其他资源模块复用：自动带 CSRF、统一错误形状。 */
+export async function apiRequest<T>(path: string, init: RequestInit = {}): Promise<T> {
+  return request<T>(path, init);
+}
+
 export async function fetchSession() {
   return request<{ authenticated: boolean; user: SessionUser | null; hasUsers: boolean; csrfToken: string | null }>(
     '/api/auth/session',
