@@ -6,6 +6,8 @@ import { ApiError, configuration, parseNotification } from './parse-service.mjs'
 import { createApiServer } from './index.mjs';
 import { signupRequest, signupModelOutput, competitionRequest } from './fixtures.mjs';
 import { relativeDate, toDateTimeInput, toZonedIso } from '../shared/date-time.ts';
+import { MAX_NOTIFICATION_CHARS } from '../shared/limits.ts';
+import { parseRequestSchema } from '../shared/parse-contract.ts';
 
 const config = { apiKey: 'test-key-never-use-in-production', baseUrl: 'https://test.invalid/v1', model: 'test-model', timeoutMs: 1000, maxTokens: 16384 };
 const completion = (value = signupModelOutput, finishReason = 'stop') => new Response(JSON.stringify({
@@ -83,8 +85,19 @@ test('无密钥或无效输入不会发起模型请求', async () => {
   await assert.rejects(parseNotification(signupRequest, { ...config, apiKey: '' }, neverFetch), errorCode('AI_NOT_CONFIGURED', 503));
   for (const input of [
     { ...signupRequest, text: '' }, { ...signupRequest, referenceDate: '2026-02-30' },
-    { ...signupRequest, timezone: 'not-a-timezone' }, { ...signupRequest, text: '字'.repeat(20001) },
+    { ...signupRequest, timezone: 'not-a-timezone' }, { ...signupRequest, text: '字'.repeat(MAX_NOTIFICATION_CHARS + 1) },
   ]) await assert.rejects(parseNotification(input, config, neverFetch), errorCode('INVALID_REQUEST', 400));
+});
+
+test('字数上限的边界：正好上限放行，多一个字拒绝', async () => {
+  const base = { referenceDate: '2026-10-30', timezone: 'Asia/Shanghai' };
+  const atLimit = parseRequestSchema.safeParse({ ...base, text: '字'.repeat(MAX_NOTIFICATION_CHARS) });
+  assert.equal(atLimit.success, true, '正好到上限应当通过');
+
+  const overLimit = parseRequestSchema.safeParse({ ...base, text: '字'.repeat(MAX_NOTIFICATION_CHARS + 1) });
+  assert.equal(overLimit.success, false);
+  // 错误提示必须带出具体数字，否则用户不知道要删多少。
+  assert.match(overLimit.error.issues[0].message, new RegExp(String(MAX_NOTIFICATION_CHARS)));
 });
 
 test('模型鉴权、余额、限流和服务器错误返回清楚的错误，不泄露密钥', async () => {

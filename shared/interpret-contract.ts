@@ -1,8 +1,10 @@
 import { z } from 'zod';
 import { knowledgeAnalysisSchema, modelKnowledgeSchema } from './parse-contract.ts';
+import { MAX_NOTIFICATION_CHARS } from './limits.ts';
 
 export const interpretRequestSchema = z.object({
-  text: z.string().trim().min(1, '请先提供通知原文').max(20000, '通知原文暂限20000字以内'),
+  text: z.string().trim().min(1, '请先提供通知原文')
+    .max(MAX_NOTIFICATION_CHARS, `通知原文暂限 ${MAX_NOTIFICATION_CHARS} 字以内`),
   ruleContext: z.string().max(60000, '规则库上下文暂限60000字以内').default(''),
 });
 

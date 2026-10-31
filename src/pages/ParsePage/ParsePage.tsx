@@ -54,6 +54,7 @@ import { genId } from '@/lib/utils';
 import { interpretWithApi } from '@/lib/interpret-api';
 import { Link } from 'react-router-dom';
 import { DEFAULT_TIMEZONE, dateInTimezone } from '@shared/date-time';
+import { MAX_NOTIFICATION_CHARS } from '@shared/limits';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import ImportanceBadge from '@/components/common/ImportanceBadge';
@@ -116,8 +117,12 @@ function offsetLabelToLeadMinutes(label: string): number {
 
 const SAMPLE_TEXT = MOCK_NOTIFICATION.rawText;
 
-/** 与参考材料一起送给模型的字数是有限额的，和服务端 parse 契约的 20000 字一致。 */
-const MATERIAL_BUDGET = 20000;
+/**
+ * 与参考材料一起送给模型的字数额度。引用 shared/limits.ts 而不是写死数字：
+ * 这个值和解析契约、抓取截断是同一个口径，任何一处单独改动都会让用户看到
+ * 「提示说 5 万，提交却按 2 万算」这种对不上的现象。
+ */
+const MATERIAL_BUDGET = MAX_NOTIFICATION_CHARS;
 
 interface IMaterial {
   id: string;
@@ -142,7 +147,7 @@ function mergeMaterials(baseText: string, materials: IMaterial[]): { text: strin
     const prefix = `【参考材料 ${index + 1}】${material.label}\n`;
     const room = MATERIAL_BUDGET - used - prefix.length - 2;
     if (room < 200) {
-      notes.push(`「${material.label}」没有纳入：内容已超过 20000 字上限。`);
+      notes.push(`「${material.label}」没有纳入：内容已超过 ${MATERIAL_BUDGET} 字上限。`);
       return;
     }
     const slice = material.text.slice(0, room);
@@ -401,6 +406,12 @@ export default function ParsePage() {
     let text = inputText.trim();
     if (!text) {
       toast.error('请先粘贴通知原文');
+      return;
+    }
+    // 服务端也会拒（400），但那要等一个往返。这里先拦，并把「怎么办」说出来——
+    // 只报「超过上限」等于把问题丢回给用户。
+    if (text.length > MATERIAL_BUDGET) {
+      toast.error(`原文 ${text.length} 字，超过 ${MATERIAL_BUDGET} 字上限。请只保留这次要办的那一段再解析。`);
       return;
     }
 
@@ -840,7 +851,7 @@ export default function ParsePage() {
                      </button>
                    </div>
                  ))}
-                 <p className="text-xs text-muted-foreground">参考材料与通知原文一起送入解析，原文优先，合计上限 20000 字。</p>
+                 <p className="text-xs text-muted-foreground">参考材料与通知原文一起送入解析，原文优先，合计上限 {MATERIAL_BUDGET} 字。</p>
                </div>
              )}
              {articleImages.length > 0 && (

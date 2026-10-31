@@ -35,9 +35,10 @@ npm run test:replay -- --only=G3
 | [G7](G7-fabricated-date/) | 模型编造原文没有的日期 | 502 `INVALID_MODEL_OUTPUT` |
 | [G8](G8-two-deadlines/) | 同一通知两个截止时间 | 忠实执行证据，不替用户裁决哪个是死线 |
 | [G9](G9-prompt-injection/) | 正文夹带提示注入 | 即便注入成功也 502（附两版迭代记录） |
-| [G10](G10-oversize-text/) | 超过 20000 字 | 400，且不发模型请求 |
+| [G10](G10-oversize-text/) | 超过 50000 字 | 400，且不发模型请求 |
 | [G11](G11-weekday-miscomputed/) | 「本周五」被模型算成周六 | 以代码换算为准 |
 | [G12](G12-contract-violation/) | `type` 返回枚举外取值 | 502，契约不放宽 |
+| [G13](G13-long-but-valid/) | 4.8 万字，截止时间在全文最后一句 | 放行并正确取出，与 G10 成对守住上限 |
 
 ## 每条样本的三个文件
 
@@ -50,7 +51,7 @@ G3-vague-time/
 
 ## 新增一条样本的步骤
 
-1. 建目录 `G13-<场景英文短名>/`，写 `input.md`；
+1. 建目录 `G14-<场景英文短名>/`，写 `input.md`；
 2. `expected.json` 里先填一个**故意有问题的** `modelOutput`（这才是边界样本的意义）；
 3. `assert` 只写行为契约：`deadline` / `eventStartTime` / `actionTitle` / `type` 的期望值、`warningsContain`、或 `error.status + error.code`；
 4. `npm run test:replay` 跑到绿；

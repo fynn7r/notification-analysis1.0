@@ -1,6 +1,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { extractWechatArticle, isWechatArticleUrl } from './article-extract.mjs';
+import { MAX_NOTIFICATION_CHARS } from '../shared/limits.ts';
 
 const ARTICLE_URL = 'https://mp.weixin.qq.com/s/AbCdEfG';
 
@@ -56,13 +57,14 @@ test('提取正文与标题，且不混入脚本和页脚', async () => {
   assert.ok(result.chars > 0);
 });
 
-test('正文超过 20000 字时截断并标记', async () => {
-  const long = `<div id="js_content">${'<p>' + '通'.repeat(500) + '</p>'.repeat(1)}</div>`;
-  const html = `<div id="js_content">${'<p>' + '通知'.repeat(20000) + '</p>'}</div>${long}<script></script>`;
+test('正文超过上限时截断并标记，截断点与解析上限同一个常量', async () => {
+  // 造一段明显超过上限的正文。断言用常量而不是写死数字：
+  // 这一条要守的是「抓取截断 == 解析上限」，写死数字就守不住了。
+  const html = `<div id="js_content">${'<p>' + '通知'.repeat(MAX_NOTIFICATION_CHARS) + '</p>'}</div>`;
   const result = await extractWechatArticle(ARTICLE_URL, stubFetch(html));
   assert.equal(result.truncated, true);
-  assert.equal(result.chars, 20000);
-  assert.equal(result.text.length, 20000);
+  assert.equal(result.chars, MAX_NOTIFICATION_CHARS);
+  assert.equal(result.text.length, MAX_NOTIFICATION_CHARS);
 });
 
 test('风控验证页给出可理解的提示', async () => {

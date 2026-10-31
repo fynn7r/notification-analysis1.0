@@ -1,0 +1,27 @@
+{
+  "id": "G13",
+  "title": "长文但未超限，关键信息在最末尾",
+  "referenceDate": "2026-10-30",
+  "timezone": "Asia/Shanghai",
+  "modelOutput": {
+    "title": "第 36 届学生科技节",
+    "type": "比赛竞赛",
+    "actionTitle": "提交科技节报名表",
+    "deadline": {
+      "date": "2026-11-15",
+      "time": "17:00",
+      "evidence": "2026 年 11 月 15 日 17:00"
+    },
+    "eventTime": null,
+    "location": "",
+    "targetAudience": "全体在校本科生与研究生",
+    "requirements": "作品须为原创，须注明第三方素材来源",
+    "contact": "",
+    "links": []
+  },
+  "assert": {
+    "deadline": "2026-11-15T17:00:00+08:00",
+    "actionTitle": "提交科技节报名表",
+    "type": "比赛竞赛"
+  }
+}

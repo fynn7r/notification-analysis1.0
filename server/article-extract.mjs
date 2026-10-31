@@ -6,10 +6,13 @@
  */
 import { ApiError } from './parse-service.mjs';
 import { applyImageText, readImages, visionEnabled } from './vision-service.mjs';
+import { MAX_NOTIFICATION_CHARS } from '../shared/limits.ts';
 
 const ARTICLE_HOST = 'mp.weixin.qq.com';
 const MAX_HTML_BYTES = 10 * 1024 * 1024;
-const MAX_TEXT_CHARS = 20000;
+// 抓取截断与解析上限共用同一个常量：两边不一致就会出现「能解析 5 万，
+// 但只抓回来 2 万」——用户不会收到任何提示，只会觉得文章少了一半。
+const MAX_TEXT_CHARS = MAX_NOTIFICATION_CHARS;
 const FETCH_TIMEOUT_MS = 15000;
 
 // 微信会按 UA 决定返回正文还是"请在微信客户端打开"，这里伪装成微信内置浏览器。

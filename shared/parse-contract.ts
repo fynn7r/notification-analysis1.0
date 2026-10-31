@@ -1,11 +1,13 @@
 import { z } from 'zod';
 import { DEFAULT_TIMEZONE, isCalendarDate } from './date-time.ts';
+import { MAX_NOTIFICATION_CHARS } from './limits.ts';
 
 const calendarDate = z.string().refine(isCalendarDate, '日期必须是有效的 YYYY-MM-DD');
 export const notificationTypes = ['比赛竞赛', '讲座分享', '作业任务', '缴费事务', '活动会议', '招募报名', '其他'] as const;
 
 export const parseRequestSchema = z.object({
-  text: z.string().trim().min(1, '请先粘贴通知原文').max(20000, '通知暂限 20000 字以内'),
+  text: z.string().trim().min(1, '请先粘贴通知原文')
+    .max(MAX_NOTIFICATION_CHARS, `通知暂限 ${MAX_NOTIFICATION_CHARS} 字以内`),
   referenceDate: calendarDate,
   timezone: z.string().default(DEFAULT_TIMEZONE).refine((value) => {
     try { new Intl.DateTimeFormat('en', { timeZone: value }); return true; } catch { return false; }
