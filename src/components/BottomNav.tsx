@@ -1,5 +1,7 @@
 import { NavLink } from 'react-router-dom';
 import { Sparkles, FilePenLine, BookOpen, Bell, History, User } from 'lucide-react';
+import ReminderCountBadges from '@/components/ReminderCountBadges';
+import { useReminderCounts } from '@/hooks/useReminderCounts';
 
 const NAV_ITEMS = [
   { path: '/', label: '智能解析', icon: Sparkles },
@@ -11,6 +13,7 @@ const NAV_ITEMS = [
 ];
 
 export default function BottomNav() {
+  const reminderCounts = useReminderCounts();
   return (
     <nav className="fixed bottom-0 left-0 right-0 z-50 border-t border-border/60 bg-background/95 backdrop-blur-md">
       <div className="mx-auto flex h-16 max-w-6xl items-center justify-around px-2">
@@ -29,7 +32,10 @@ export default function BottomNav() {
                 }`
               }
             >
-              <Icon className="size-5" />
+              <span className="relative inline-flex">
+                <Icon className="size-5" />
+                {item.path === '/reminders' && <ReminderCountBadges {...reminderCounts} />}
+              </span>
               <span>{item.label}</span>
             </NavLink>
           );

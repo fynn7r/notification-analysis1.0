@@ -1,6 +1,7 @@
 import { NavLink, useLocation, useNavigate } from 'react-router-dom';
 import { Sparkles, BookOpen, Bell, History, FileText, FilePenLine, User, RefreshCcw } from 'lucide-react';
-import { useState } from 'react';
+import ReminderCountBadges from '@/components/ReminderCountBadges';
+import { useReminderCounts } from '@/hooks/useReminderCounts';
 import { Button } from '@/components/ui/button';
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip';
 import {
@@ -37,6 +38,8 @@ export default function Header({ onOpenRecurring }: HeaderProps) {
   const { pathname } = useLocation();
   const navigate = useNavigate();
   const currentKey = getCurrentKey(pathname);
+  // 角标只做提示，不参与路由；未读口径见 useReminderCounts。
+  const reminderCounts = useReminderCounts();
 
   return (
     <TooltipProvider>
@@ -67,7 +70,10 @@ export default function Header({ onOpenRecurring }: HeaderProps) {
                     }`
                   }
                 >
-                  <Icon className="size-4" />
+                  <span className="relative inline-flex">
+                    <Icon className="size-4" />
+                    {item.path === '/reminders' && <ReminderCountBadges {...reminderCounts} />}
+                  </span>
                   <span>{item.shortLabel}</span>
                 </NavLink>
               );
@@ -83,7 +89,12 @@ export default function Header({ onOpenRecurring }: HeaderProps) {
                     {(() => {
                       const cur = NAV_ITEMS.find((i) => i.path === currentKey);
                       const CurIcon = cur?.icon ?? Sparkles;
-                      return <CurIcon className="size-4 text-muted-foreground" />;
+                      return (
+                        <span className="relative inline-flex">
+                          <CurIcon className="size-4 text-muted-foreground" />
+                          {currentKey === '/reminders' && <ReminderCountBadges {...reminderCounts} />}
+                        </span>
+                      );
                     })()}
                     <span>{NAV_ITEMS.find((i) => i.path === currentKey)?.label}</span>
                   </span>
