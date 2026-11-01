@@ -82,3 +82,28 @@ test('角标：全部完成时两个点都消失', async ({ page }) => {
   await expect(page.locator('[title$="条待办"]')).toHaveCount(0);
   await expect(page.locator('[title$="条已过期"]')).toHaveCount(0);
 });
+
+/**
+ * 无障碍：名字与描述必须分开。
+ *
+ * 角标是可见的，但它的数字文本一旦进了链接内容，accessible name 就会变成
+ * 「3 2 提醒事项」。所以数字要 aria-hidden，数量另走 aria-describedby。
+ * 这两条断言互为反证：名字严格等于菜单名，描述里才出现数量。
+ */
+test('角标：不改写菜单的 accessible name，数量走描述', async ({ page }) => {
+  await seed(page, [reminder('a', 5), reminder('b', 2), reminder('c', -3)]);
+  await page.goto('/reminders');
+
+  const link = page.getByRole('link', { name: '提醒事项', exact: true });
+  await expect(link).toBeVisible();
+  await expect(link).toHaveAccessibleDescription('2 条待办，1 条已过期');
+});
+
+test('角标：没有待办时不挂空的描述', async ({ page }) => {
+  await seed(page, []);
+  await page.goto('/reminders');
+
+  const link = page.getByRole('link', { name: '提醒事项', exact: true });
+  await expect(link).toBeVisible();
+  await expect(link).toHaveAccessibleDescription('');
+});
